@@ -13,6 +13,7 @@ import { ImportService } from './import/importService'
 import { runInWorker } from './workers/runWorker'
 import { DiscoverService, SqliteCache } from './discover/service'
 import { AiRepo } from './db/aiRepo'
+import { ChatService } from './ai/chat'
 import { AiService } from './ai/service'
 import { createClaudeClient, type ClaudeClient } from './ai/claude'
 import type { EventChannel, IpcEventMap } from '../shared/ipc'
@@ -35,6 +36,7 @@ export interface AppContext {
   importer: ImportService
   discover: DiscoverService
   aiRepo: AiRepo
+  chat: ChatService
   ai: AiService
 }
 
@@ -103,6 +105,14 @@ export function createContext(emit: Emit): AppContext {
     emitDelta: (d) => emit('ai:delta', d),
     onVersionsChanged: (bookId) => emit('library:changed', { bookId })
   })
+  const chat = new ChatService({
+    db,
+    books,
+    files,
+    client: claude,
+    effort: () => settings.get().ai.effort,
+    emitDelta: (d) => emit('ai:delta', d)
+  })
   return {
     db,
     dbPath,
@@ -119,6 +129,7 @@ export function createContext(emit: Emit): AppContext {
     discover,
     downloads,
     aiRepo,
-    ai
+    ai,
+    chat
   }
 }

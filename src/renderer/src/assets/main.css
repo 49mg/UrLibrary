@@ -212,3 +212,29 @@ body {
   height: 0;
   pointer-events: none;
 }
+
+/* Citation markers in chat answers */
+.sl-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.25rem;
+  margin: 0 0.05rem;
+  border-radius: 9999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: 0.15em;
+  cursor: pointer;
+}
+.sl-cite:hover {
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+}
+.sl-chat p {
+  margin: 0.4em 0;
+}

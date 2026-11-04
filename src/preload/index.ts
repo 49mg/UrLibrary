@@ -99,6 +99,13 @@ const api = {
     ask: (args: InvokeArgs<'ai:ask'>) => invoke('ai:ask', args),
     askCancel: (requestId: string) => invoke('ai:askCancel', { requestId })
   },
+  chat: {
+    info: (bookId: string) => invoke('chat:info', { bookId }),
+    history: (bookId: string) => invoke('chat:history', { bookId }),
+    ask: (args: InvokeArgs<'chat:ask'>) => invoke('chat:ask', args),
+    cancel: (requestId: string) => invoke('chat:cancel', { requestId }),
+    clear: (bookId: string) => invoke('chat:clear', { bookId })
+  },
   versions: {
     list: (bookId: string) => invoke('versions:list', { bookId }),
     rename: (id: string, title: string) => invoke('versions:rename', { id, title }),

@@ -62,6 +62,14 @@ modified), readable and annotatable in the reader, exportable to PDF, Word or Ma
 is passed to the model as tagged content, never as instructions. Tests use a fake Anthropic API,
 so they never spend money.
 
+**Chat with a book:** the reader's chat panel asks Claude about the open book using the API's
+citations feature: passages are sent as blocks of a document, and the API returns exactly which
+blocks each sentence came from, so every answer links to real passages (click a number to jump
+there). Books up to ~200k tokens are sent whole with prompt caching, so follow-ups mostly read from
+cache; longer books get the most relevant passages per question from the FTS5 index (plus where
+the reader is). Conversations are stored per book and replayed exactly as the API returned them
+(thinking blocks included); if the book's text changes, a fresh conversation starts.
+
 **Highlights & notes:** stored in SQLite, never written into the original file. Each one keeps a
 format-specific anchor (PDF page + rectangles as page fractions, EPUB CFI, or a text quote with
 surrounding context for DOCX/MD/TXT that is re-found if the text shifts — see

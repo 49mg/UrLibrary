@@ -226,6 +226,18 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
     })
     .strict(),
   'ai:askCancel': z.object({ requestId: id }).strict(),
+  'chat:info': z.object({ bookId: id }).strict(),
+  'chat:history': z.object({ bookId: id }).strict(),
+  'chat:ask': z
+    .object({
+      requestId: id,
+      bookId: id,
+      question: z.string().trim().min(1).max(4000),
+      location: z.string().max(200).optional()
+    })
+    .strict(),
+  'chat:cancel': z.object({ requestId: id }).strict(),
+  'chat:clear': z.object({ bookId: id }).strict(),
   'versions:list': z.object({ bookId: id }).strict(),
   'versions:rename': z.object({ id, title: z.string().trim().min(1).max(200) }).strict(),
   'versions:delete': z.object({ id }).strict(),

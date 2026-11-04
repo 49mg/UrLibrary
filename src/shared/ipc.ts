@@ -257,6 +257,40 @@ export interface BookVersion {
 
 export type AskAction = 'explain' | 'define' | 'translate' | 'simplify'
 
+// ---------- Chat with a book ----------
+
+export interface ChatCitation {
+  /** Number shown in the answer, e.g. [2] */
+  n: number
+  location: string
+  chapter: string | null
+  /** The cited passage */
+  quote: string
+}
+
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  /** Markdown. Assistant answers contain [[n]] markers for citations. */
+  content: string
+  citations: ChatCitation[]
+  createdAt: string
+  inputTokens: number | null
+  cacheReadTokens: number | null
+  outputTokens: number | null
+  /** true when this turn started a new context (book text changed or history got too long) */
+  freshContext: boolean
+}
+
+export interface ChatInfo {
+  /** 'full': the whole book is sent (cached); 'retrieval': relevant passages are searched per question */
+  mode: 'full' | 'retrieval'
+  bookTokens: number
+  /** Rough cost of the first question in a session, and of follow-ups while the cache is warm. */
+  firstQuestionUsd: number
+  followUpUsd: number
+}
+
 export type AnnotationType = 'highlight' | 'bookmark'
 export const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'pink', 'purple'] as const
 export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number]
@@ -435,6 +469,15 @@ export interface IpcInvokeMap {
     result: { text: string }
   }
   'ai:askCancel': { args: { requestId: string }; result: void }
+  'chat:info': { args: { bookId: string }; result: ChatInfo }
+  'chat:history': { args: { bookId: string }; result: ChatMessage[] }
+  /** The answer streams as 'ai:delta' events with this requestId; resolves with the saved answer. */
+  'chat:ask': {
+    args: { requestId: string; bookId: string; question: string; location?: string }
+    result: { question: ChatMessage; answer: ChatMessage }
+  }
+  'chat:cancel': { args: { requestId: string }; result: void }
+  'chat:clear': { args: { bookId: string }; result: void }
   'versions:list': { args: { bookId: string }; result: BookVersion[] }
   'versions:rename': { args: { id: string; title: string }; result: void }
   'versions:delete': { args: { id: string }; result: void }

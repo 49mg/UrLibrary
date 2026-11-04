@@ -155,5 +155,24 @@ export const migrations: string[] = [
   ALTER TABLE versions ADD COLUMN input_tokens INTEGER;
   ALTER TABLE versions ADD COLUMN output_tokens INTEGER;
   CREATE INDEX annotations_version ON annotations(version_id);
+  `,
+  /* 7: chat with a book */ `
+  CREATE TABLE chat_messages (
+    id                TEXT PRIMARY KEY,
+    book_id           TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    role              TEXT NOT NULL CHECK (role IN ('user','assistant')),
+    content           TEXT NOT NULL,
+    citations_json    TEXT,
+    -- user: {question, chunkIds} to rebuild the exact request; assistant: raw API content blocks
+    api_json          TEXT NOT NULL,
+    -- book text + mode the turn was sent with; turns with another key are not replayed
+    context_key       TEXT NOT NULL,
+    fresh_context     INTEGER NOT NULL DEFAULT 0,
+    input_tokens      INTEGER,
+    cache_read_tokens INTEGER,
+    output_tokens     INTEGER,
+    created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX chat_messages_book ON chat_messages(book_id, created_at);
   `
 ]

@@ -350,6 +350,12 @@ app.whenReady().then(() => {
     'ai:ask': ({ requestId, bookId, text, action, context }) =>
       ctx.ai.ask(requestId, bookId, text, action, context),
     'ai:askCancel': ({ requestId }) => ctx.ai.cancelAsk(requestId),
+    'chat:info': ({ bookId }) => ctx.chat.info(bookId),
+    'chat:history': ({ bookId }) => ctx.chat.history(bookId),
+    'chat:ask': ({ requestId, bookId, question, location }) =>
+      ctx.chat.ask(requestId, bookId, question, location),
+    'chat:cancel': ({ requestId }) => ctx.chat.cancel(requestId),
+    'chat:clear': ({ bookId }) => ctx.chat.clear(bookId),
     'versions:list': ({ bookId }) => ctx.aiRepo.versions(bookId),
     'versions:rename': ({ id, title }) => {
       const v = ctx.aiRepo.version(id)

@@ -25,9 +25,28 @@ export interface StreamResult {
   model: string
 }
 
+export interface ChatRequest {
+  system: string
+  /** Full conversation; earlier assistant turns are replayed exactly as the API returned them. */
+  messages: Anthropic.Beta.BetaMessageParam[]
+  effort: AiEffort
+  signal: AbortSignal
+  onText: (delta: string) => void
+}
+
+export interface ChatResult {
+  /** Raw content blocks (thinking, text with citations, fallback markers) to store and replay. */
+  content: Anthropic.Beta.BetaContentBlock[]
+  stopReason: string | null
+  inputTokens: number
+  cacheReadTokens: number
+  outputTokens: number
+}
+
 /** What the rest of the app needs from Claude; tests substitute a fake. */
 export interface ClaudeClient {
   stream(req: StreamRequest): Promise<StreamResult>
+  chat(req: ChatRequest): Promise<ChatResult>
   countTokens(system: string, user: string): Promise<number>
 }
 
@@ -121,6 +140,43 @@ export function createClaudeClient(apiKey: string): ClaudeClient {
             (final.usage.cache_creation_input_tokens ?? 0),
           outputTokens: final.usage.output_tokens,
           model: final.model
+        }
+      } catch (err) {
+        throw friendlyError(err)
+      }
+    },
+    async chat(req) {
+      try {
+        const stream = client.beta.messages.stream(
+          {
+            model: AI_MODEL,
+            max_tokens: 16_000,
+            betas: ['server-side-fallback-2026-07-01'],
+            fallbacks: 'default',
+            thinking: { type: 'adaptive' },
+            output_config: { effort: req.effort },
+            system: req.system,
+            messages: req.messages
+          },
+          { signal: req.signal }
+        )
+        for await (const event of stream) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+            req.onText(event.delta.text)
+          }
+        }
+        const final = await stream.finalMessage()
+        if (final.stop_reason === 'refusal') {
+          throw new AiError(
+            'Claude declined to answer this question, even after retrying on a fallback model.'
+          )
+        }
+        return {
+          content: final.content,
+          stopReason: final.stop_reason,
+          inputTokens: final.usage.input_tokens + (final.usage.cache_creation_input_tokens ?? 0),
+          cacheReadTokens: final.usage.cache_read_input_tokens ?? 0,
+          outputTokens: final.usage.output_tokens
         }
       } catch (err) {
         throw friendlyError(err)

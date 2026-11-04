@@ -16,7 +16,8 @@ import {
   Search,
   Sparkles,
   Type,
-  X
+  X,
+  MessagesSquare
 } from 'lucide-react'
 import type { ReaderPrefs, ReaderSession } from '../../../shared/ipc'
 import type { HighlightColor } from '../../../shared/ipc'
@@ -25,6 +26,7 @@ import { HighlightPopover, type PopoverState } from './HighlightPopover'
 import { NotesPanel } from './NotesPanel'
 import { useAnnotations } from './useAnnotations'
 import { AskAiPanel } from './AskAiPanel'
+import { ChatPanel } from './ChatPanel'
 import { ExportMenu } from '../components/ai/JobView'
 import { useLatest } from '../lib/useLatest'
 import { PAGE_COLORS } from './types'
@@ -377,14 +379,28 @@ export function ReaderView({
   const [panel, setPanel] = useState<'toc' | 'pages' | null>(null)
   const [searchOpen, setSearchOpenRaw] = useState(false)
   const [notesOpen, setNotesOpenRaw] = useState(false)
-  // Search and notes share the right-hand side; opening one closes the other.
+  const [chatOpen, setChatOpenRaw] = useState(false)
+  // Search, notes and chat share the right-hand side; opening one closes the others.
   const setSearchOpen = useCallback((v: boolean) => {
     setSearchOpenRaw(v)
-    if (v) setNotesOpenRaw(false)
+    if (v) {
+      setNotesOpenRaw(false)
+      setChatOpenRaw(false)
+    }
   }, [])
   const setNotesOpen = useCallback((v: boolean) => {
     setNotesOpenRaw(v)
-    if (v) setSearchOpenRaw(false)
+    if (v) {
+      setSearchOpenRaw(false)
+      setChatOpenRaw(false)
+    }
+  }, [])
+  const setChatOpen = useCallback((v: boolean) => {
+    setChatOpenRaw(v)
+    if (v) {
+      setSearchOpenRaw(false)
+      setNotesOpenRaw(false)
+    }
   }, [])
 
   // ---- highlights, notes, bookmarks ----
@@ -676,6 +692,16 @@ export function ReaderView({
           >
             <NotebookPen size={18} />
           </IconButton>
+          {/* Chat answers cite the original's passages, so it's offered on the original only. */}
+          {!version && (
+            <IconButton
+              label="Ask about this book"
+              active={chatOpen}
+              onClick={() => setChatOpen(!chatOpen)}
+            >
+              <MessagesSquare size={18} />
+            </IconButton>
+          )}
           <div className="relative" data-display-toggle>
             <IconButton
               label="Display settings"
@@ -782,6 +808,14 @@ export function ReaderView({
             onUpdate={(id, patch) => void update(id, patch)}
             onDelete={(id) => void remove(id)}
             onClose={() => setNotesOpen(false)}
+          />
+        )}
+        {chatOpen && !version && !focusMode && (
+          <ChatPanel
+            bookId={book.id}
+            location={position?.location ?? null}
+            onOpen={(l) => handle.current?.goTo(l)}
+            onClose={() => setChatOpen(false)}
           />
         )}
         {pop && (
