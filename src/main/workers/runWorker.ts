@@ -1,14 +1,13 @@
 import { utilityProcess } from 'electron'
 import extractWorkerPath from './extractWorker?modulePath'
-import type { WorkerMessage, WorkerTask } from './protocol'
-import type { ExtractResult } from '../import/types'
+import type { WorkerMessage, WorkerResults, WorkerTask } from './protocol'
 
 /** Runs a task in a fresh utility process. Aborting the signal kills the process. */
-export function runInWorker(
-  task: WorkerTask,
+export function runInWorker<T extends WorkerTask>(
+  task: T,
   onProgress: (fraction: number) => void,
   signal: AbortSignal
-): Promise<ExtractResult> {
+): Promise<WorkerResults[T['type']]> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) return reject(new Error('Cancelled'))
     const child = utilityProcess.fork(extractWorkerPath, [], {
@@ -29,7 +28,7 @@ export function runInWorker(
     signal.addEventListener('abort', onAbort)
     child.on('message', (msg: WorkerMessage) => {
       if (msg.type === 'progress') onProgress(msg.fraction)
-      else if (msg.type === 'result') finish(() => resolve(msg.result))
+      else if (msg.type === 'result') finish(() => resolve(msg.result as WorkerResults[T['type']]))
       else if (msg.type === 'error') finish(() => reject(new Error(msg.message)))
     })
     child.on('exit', (code) => {

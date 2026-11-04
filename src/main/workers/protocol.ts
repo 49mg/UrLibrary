@@ -5,8 +5,16 @@ import type { ExtractResult } from '../import/types'
 export type WorkerTask =
   | { type: 'extract'; filePath: string; format: BookFormat; bookDir: string }
   | { type: 'ocr'; filePath: string; language: string; cachePath: string }
+  | { type: 'html'; filePath: string; format: BookFormat }
+
+/** What each task type resolves to. */
+export interface WorkerResults {
+  extract: ExtractResult
+  ocr: ExtractResult
+  html: { html: string }
+}
 
 export type WorkerMessage =
   | { type: 'progress'; fraction: number }
-  | { type: 'result'; result: ExtractResult }
+  | { type: 'result'; result: WorkerResults[keyof WorkerResults] }
   | { type: 'error'; message: string }

@@ -65,6 +65,28 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
       language: z.enum(OCR_LANGUAGES.map((l) => l.code) as [OcrLanguage, ...OcrLanguage[]])
     })
     .strict(),
+  'reader:open': z.object({ id }).strict(),
+  'reader:saveProgress': z
+    .object({ id, location: z.string().min(1).max(2000), progress: z.number().min(0).max(1) })
+    .strict(),
+  'reader:savePrefs': z
+    .object({
+      id,
+      prefs: z
+        .object({
+          theme: z.enum(['light', 'dark', 'sepia']).optional(),
+          fontFamily: z.enum(['serif', 'sans']).optional(),
+          fontSize: z.number().int().min(10).max(40).optional(),
+          lineHeight: z.number().min(1).max(3).optional(),
+          flow: z.enum(['paginated', 'scrolled']).optional(),
+          pdfZoom: z
+            .union([z.enum(['page-width', 'page-fit', 'auto']), z.number().min(0.25).max(5)])
+            .optional()
+        })
+        .strict()
+    })
+    .strict(),
+  'reader:html': z.object({ id }).strict(),
   'library:openFolder': none,
   'library:importDialog': z.object({ mode: z.enum(['files', 'folder']) }).strict(),
   'library:importPaths': z

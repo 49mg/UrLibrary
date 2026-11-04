@@ -1,86 +1,71 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
-import { ArrowLeft, BookOpen } from 'lucide-react'
-import type { BookDetails } from '../../../shared/ipc'
-import { EmptyState, PageHeader } from '../components/ui'
-import { BookCover } from '../components/BookCover'
-import { TextStatusBadge } from '../components/BookStatus'
-import { FORMAT_LABEL, locationLabel } from '../lib/format'
+import { BookOpen } from 'lucide-react'
+import type { ReaderSession } from '../../../shared/ipc'
+import { Button, EmptyState, PageHeader } from '../components/ui'
+import { ReaderView } from '../reader/ReaderView'
 import { useLibrary } from '../stores/library'
 
-/**
- * Placeholder until the real readers land (epic SL-3). Shows which book and location was requested,
- * so links from search already work end to end.
- */
-export function ReaderPage(): React.JSX.Element {
-  const { bookId } = useParams()
+function NoBook(): React.JSX.Element {
+  const books = useLibrary((s) => s.books)
+  const last = [...books]
+    .filter((b) => b.lastOpenedAt)
+    .sort((a, b) => (b.lastOpenedAt ?? '').localeCompare(a.lastOpenedAt ?? ''))[0]
+  return (
+    <>
+      <PageHeader title="Reader" />
+      <EmptyState
+        icon={BookOpen}
+        title="No book open"
+        action={
+          last && (
+            <Link to={`/reader/${last.id}`}>
+              <Button variant="primary">Resume “{last.title}”</Button>
+            </Link>
+          )
+        }
+      >
+        Open a book from your library to start reading.
+      </EmptyState>
+    </>
+  )
+}
+
+function OpenBook({ bookId }: { bookId: string }): React.JSX.Element {
   const [params] = useSearchParams()
-  const loc = params.get('loc')
-  const [book, setBook] = useState<BookDetails | null | 'missing'>(null)
-  const version = useLibrary((s) => s.books.find((b) => b.id === bookId))
+  const target = params.get('loc')
+  const [session, setSession] = useState<ReaderSession | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!bookId) return
-    window.api.books
-      .get(bookId)
-      .then(setBook)
-      .catch(() => setBook('missing'))
-  }, [bookId, version])
+    let cancelled = false
+    window.api.reader
+      .open(bookId)
+      .then((s) => !cancelled && setSession(s))
+      .catch((e: Error) => !cancelled && setError(e.message))
+    return () => {
+      cancelled = true
+    }
+  }, [bookId])
 
-  if (!bookId) {
-    return (
-      <>
-        <PageHeader title="Reader" />
-        <EmptyState icon={BookOpen} title="No book open">
-          Open a book from your library to start reading.
-        </EmptyState>
-      </>
-    )
-  }
-  if (book === 'missing') {
+  if (error) {
     return (
       <EmptyState icon={BookOpen} title="Book not found">
-        It may have been deleted.{' '}
+        {error}{' '}
         <Link to="/library" className="text-accent underline">
           Back to library
         </Link>
       </EmptyState>
     )
   }
-  if (!book) return <div />
+  if (!session) return <div className="h-full" />
+  // A location from a search hit wins over the saved reading position.
+  return <ReaderView session={session} initialLocation={target ?? session.location} />
+}
 
-  return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8 px-10 py-10">
-      <Link
-        to="/library"
-        className="inline-flex w-fit items-center gap-1 text-sm text-muted hover:text-text"
-      >
-        <ArrowLeft size={14} aria-hidden /> Library
-      </Link>
-      <div className="flex gap-8">
-        <div className="h-60 w-40 shrink-0 overflow-hidden rounded-md border border-border shadow-md">
-          <BookCover book={book} />
-        </div>
-        <div className="flex flex-col gap-2">
-          <h1 className="font-serif text-3xl leading-tight">{book.title}</h1>
-          {book.author && <p className="text-muted">{book.author}</p>}
-          <p className="text-sm text-muted">
-            {FORMAT_LABEL[book.format]}
-            {book.pageCount ? ` · ${book.pageCount} pages` : ''}
-            {book.wordCount ? ` · ${book.wordCount.toLocaleString()} words` : ''}
-          </p>
-          <TextStatusBadge book={book} />
-          {book.description && <p className="mt-2 text-sm leading-relaxed">{book.description}</p>}
-        </div>
-      </div>
-      <div className="rounded-xl border border-dashed border-border px-6 py-8 text-center text-sm text-muted">
-        The reader for {FORMAT_LABEL[book.format]} files arrives in the next epic.
-        {loc && (
-          <span className="mt-2 block">
-            It will open at <span className="text-text">{locationLabel(loc) || loc}</span>.
-          </span>
-        )}
-      </div>
-    </div>
-  )
+export function ReaderPage(): React.JSX.Element {
+  const { bookId } = useParams()
+  if (!bookId) return <NoBook />
+  // Key by book so switching books fully remounts (and flushes progress of the previous one).
+  return <OpenBook key={bookId} bookId={bookId} />
 }

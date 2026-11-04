@@ -4,6 +4,7 @@ import type {
   BookFormat,
   BookPatch,
   BookSummary,
+  ReaderPrefs,
   ReadingStatus,
   TextStatus
 } from '../../shared/ipc'
@@ -64,6 +65,17 @@ export interface ChunkRow {
   chapter: string | null
   location: string
   content: string
+}
+
+const NOW = "strftime('%Y-%m-%dT%H:%M:%fZ','now')"
+
+function parseJson<T>(s: string | null): T | null {
+  if (!s) return null
+  try {
+    return JSON.parse(s) as T
+  } catch {
+    return null
+  }
 }
 
 const SELECT = `
@@ -227,6 +239,49 @@ export class BooksRepo {
       this.db.exec('ROLLBACK')
       throw err
     }
+  }
+
+  /** Marks the book as opened now and returns the saved position and per-book reader prefs. */
+  open(id: string): { location: string | null; prefs: Partial<ReaderPrefs> } | null {
+    const r = this.db
+      .prepare('SELECT progress_json, reader_prefs FROM books WHERE id = ?')
+      .get(id) as { progress_json: string | null; reader_prefs: string | null } | undefined
+    if (!r) return null
+    this.db.prepare(`UPDATE books SET last_opened_at = ${NOW} WHERE id = ?`).run(id)
+    return {
+      location: parseJson<{ location?: string }>(r.progress_json)?.location ?? null,
+      prefs: parseJson<Partial<ReaderPrefs>>(r.reader_prefs) ?? {}
+    }
+  }
+
+  /**
+   * Saves the reading position. Opening a book moves it from unread to reading; reaching the end
+   * marks it finished. A finished book stays finished if re-read, unless the user changes it.
+   */
+  saveProgress(id: string, location: string, progress: number): ReadingStatus | null {
+    const p = Math.max(0, Math.min(1, progress))
+    this.db
+      .prepare(
+        `UPDATE books SET
+           progress_json = ?, progress = ?, last_opened_at = ${NOW},
+           status = CASE
+             WHEN ? >= 0.98 THEN 'finished'
+             WHEN status = 'unread' THEN 'reading'
+             ELSE status END
+         WHERE id = ?`
+      )
+      .run(JSON.stringify({ location, progress: p }), p, p, id)
+    const r = this.db.prepare('SELECT status FROM books WHERE id = ?').get(id) as
+      { status: ReadingStatus } | undefined
+    return r?.status ?? null
+  }
+
+  saveReaderPrefs(id: string, patch: Partial<ReaderPrefs>): Partial<ReaderPrefs> {
+    const r = this.db.prepare('SELECT reader_prefs FROM books WHERE id = ?').get(id) as
+      { reader_prefs: string | null } | undefined
+    const next = { ...(parseJson<Partial<ReaderPrefs>>(r?.reader_prefs ?? null) ?? {}), ...patch }
+    this.db.prepare('UPDATE books SET reader_prefs = ? WHERE id = ?').run(JSON.stringify(next), id)
+    return next
   }
 
   /** Books stuck in 'processing' after a crash or quit get retried on next start. */

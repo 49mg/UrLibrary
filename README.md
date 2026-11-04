@@ -26,6 +26,8 @@ src/
     services/  FileStore (library folder + book:// protocol), SecretStore (safeStorage), JobQueue
   preload/     exposes a typed, minimal `window.api` via contextBridge
   renderer/    React UI (Tailwind v4, Zustand, React Router)
+    reader/    PDF (pdf.js viewer), EPUB (epub.js) and HTML (DOCX/TXT/MD) readers behind one
+               ReaderHandle interface, plus the shared chrome (TOC, search, display, focus mode)
 ```
 
 **Security defaults:** `contextIsolation`, `sandbox`, no `nodeIntegration`, strict CSP, IPC only
@@ -36,6 +38,12 @@ from our own renderer, all arguments validated, the Anthropic API key encrypted 
 library, then a utility process extracts metadata, a cover and the text, which is split into
 ~2,000-character chunks, indexed with SQLite FTS5 and saved as `text/chunks.json` for AI features.
 Scanned PDFs are flagged and can be OCR'd; language data is downloaded once on first use.
+
+**Reader locations:** positions are strings shared by search, progress and (later) notes:
+`page:12` (PDF), `cfi:epubcfi(...)` / `href:<file>` (EPUB), `heading:3` (DOCX/MD, the n-th
+heading), `section:2` (TXT), `scroll:0.42` (saved scroll position in HTML views). Untrusted book
+content is sandboxed: EPUB pages render in script-less iframes, DOCX/MD/TXT HTML is sanitized
+with DOMPurify.
 
 **Data location:** `<userData>/library.db` (SQLite) and `<userData>/library/<bookId>/…` for files.
 Book files reach the UI through the `book://<bookId>/<path>` protocol, which refuses paths outside

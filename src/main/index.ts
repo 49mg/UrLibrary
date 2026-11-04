@@ -8,6 +8,8 @@ import { handleBookProtocol, registerBookSchemePrivileges } from './protocol'
 import { testApiKey } from './services/apiKeyTester'
 import { AppError } from './ipc/handler'
 import type { BookDetails, EventChannel, IpcEventMap } from '../shared/ipc'
+import { effectiveReaderPrefs } from '../shared/defaults'
+import { runInWorker } from './workers/runWorker'
 
 registerBookSchemePrivileges()
 
@@ -132,6 +134,54 @@ app.whenReady().then(() => {
       if (ctx.jobs.hasActiveJob(id))
         throw new AppError('BUSY', 'This book is already being processed.')
       ctx.importer.queueOcr(id, language)
+    },
+    'reader:open': ({ id }) => {
+      const book = requireBook(id)
+      const info = ctx.books.getFileInfo(id)
+      const saved = ctx.books.open(id)
+      if (!info || !saved)
+        throw new AppError('NOT_FOUND', 'That book is no longer in your library.')
+      emitLibraryChanged(id)
+      return {
+        book,
+        fileUrl: `book://${id}/${info.filePath}`,
+        location: saved.location,
+        prefs: effectiveReaderPrefs(ctx.settings.get().reader, saved.prefs)
+      }
+    },
+    'reader:saveProgress': ({ id, location, progress }) => {
+      const before = ctx.books.get(id)
+      const status = ctx.books.saveProgress(id, location, progress)
+      if (!status) throw new AppError('NOT_FOUND', 'That book is no longer in your library.')
+      // Refresh library views only on visible changes, not on every page turn.
+      if (!before || before.status !== status || Math.abs(before.progress - progress) >= 0.01) {
+        emitLibraryChanged(id)
+      }
+      return { status }
+    },
+    'reader:savePrefs': ({ id, prefs }) => {
+      requireBook(id)
+      return effectiveReaderPrefs(ctx.settings.get().reader, ctx.books.saveReaderPrefs(id, prefs))
+    },
+    'reader:html': async ({ id }) => {
+      const info = ctx.books.getFileInfo(id)
+      if (!info) throw new AppError('NOT_FOUND', 'That book is no longer in your library.')
+      if (info.format === 'pdf' || info.format === 'epub') {
+        throw new AppError('UNSUPPORTED', 'This format has its own reader.')
+      }
+      try {
+        return await runInWorker(
+          {
+            type: 'html',
+            filePath: ctx.files.resolveInBook(id, info.filePath),
+            format: info.format
+          },
+          () => undefined,
+          new AbortController().signal
+        )
+      } catch (err) {
+        throw new AppError('RENDER_FAILED', `Couldn’t open this file: ${(err as Error).message}`)
+      }
     },
     'library:openFolder': async () => {
       const err = await shell.openPath(ctx.files.root)

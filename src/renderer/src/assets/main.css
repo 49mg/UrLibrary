@@ -74,3 +74,90 @@ body {
 ::selection {
   background: var(--c-accent-soft);
 }
+
+/* ---------- Reader ---------- */
+
+/* Search matches in the HTML reader (CSS Custom Highlight API: no DOM changes needed). */
+::highlight(sl-search) {
+  background-color: rgb(224 138 92 / 0.3);
+}
+::highlight(sl-search-current) {
+  background-color: rgb(224 138 92 / 0.75);
+  color: #1a120c;
+}
+
+.sl-prose :where(h1, h2, h3, h4) {
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 2.2em 0 0.8em;
+}
+.sl-prose h1 {
+  font-size: 1.8em;
+}
+.sl-prose h2 {
+  font-size: 1.45em;
+}
+.sl-prose h3 {
+  font-size: 1.2em;
+}
+.sl-prose :where(p, ul, ol, blockquote, pre, table, figure) {
+  margin: 0 0 1em;
+}
+.sl-prose :where(ul, ol) {
+  padding-inline-start: 1.5em;
+}
+.sl-prose ul {
+  list-style: disc;
+}
+.sl-prose ol {
+  list-style: decimal;
+}
+.sl-prose blockquote {
+  border-inline-start: 3px solid currentColor;
+  opacity: 0.85;
+  padding-inline-start: 1em;
+  font-style: italic;
+}
+.sl-prose :where(code, pre) {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+.sl-prose pre {
+  overflow-x: auto;
+  padding: 0.8em 1em;
+  border-radius: 6px;
+  background: rgb(127 127 127 / 0.12);
+}
+.sl-prose a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.sl-prose img {
+  max-width: 100%;
+  height: auto;
+  margin: 1em auto;
+}
+.sl-prose table {
+  border-collapse: collapse;
+}
+.sl-prose :where(td, th) {
+  border: 1px solid rgb(127 127 127 / 0.35);
+  padding: 0.3em 0.6em;
+}
+.sl-prose section + section {
+  margin-top: 3em;
+}
+
+/* PDF page themes: recolor rendered pages; the text layer stays transparent for selection. */
+.sl-pdf .pdfViewer .page {
+  border: none;
+  margin: 12px auto;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.18);
+}
+.sl-pdf-sepia .pdfViewer .canvasWrapper {
+  filter: sepia(0.45) brightness(0.97);
+}
+.sl-pdf-dark .pdfViewer .canvasWrapper {
+  filter: invert(0.88) hue-rotate(180deg);
+}

@@ -33,8 +33,11 @@ export async function sha256File(path: string): Promise<string> {
   return hash.digest('hex')
 }
 
+/** Tasks that produce extracted text (as opposed to e.g. HTML rendering). */
+export type ExtractTask = Extract<WorkerTask, { type: 'extract' | 'ocr' }>
+
 export type Extractor = (
-  task: WorkerTask,
+  task: ExtractTask,
   onProgress: (fraction: number) => void,
   signal: AbortSignal
 ) => Promise<ExtractResult>
@@ -185,7 +188,7 @@ export class ImportService {
   private async process(
     id: string,
     ctx: JobContext,
-    makeTask: (dir: string) => WorkerTask
+    makeTask: (dir: string) => ExtractTask
   ): Promise<void> {
     const dir = this.d.files.bookDir(id)
     this.d.books.setTextStatus(id, 'processing')

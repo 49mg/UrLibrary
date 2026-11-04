@@ -11,9 +11,11 @@ import { SettingsPage } from './pages/SettingsPage'
 import { applyTheme, subscribeSettings, useSettings } from './stores/settings'
 import { subscribeJobs } from './stores/jobs'
 import { toast } from './stores/toasts'
+import { useUi } from './stores/ui'
 
 function App(): React.JSX.Element {
   const theme = useSettings((s) => s.settings.theme)
+  const focusMode = useUi((s) => s.focusMode)
 
   useEffect(() => {
     useSettings
@@ -36,8 +38,8 @@ function App(): React.JSX.Element {
   return (
     <HashRouter>
       <div className="flex h-full">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto">
+        {!focusMode && <Sidebar />}
+        <main className="min-w-0 flex-1 overflow-y-auto">
           <Routes>
             <Route path="/" element={<Navigate to="/library" replace />} />
             <Route path="/library" element={<LibraryPage />} />

@@ -1,4 +1,4 @@
-import type { AppSettings, DeepPartial } from './ipc'
+import type { AppSettings, DeepPartial, ReaderPrefs } from './ipc'
 
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
@@ -12,6 +12,20 @@ export const DEFAULT_SETTINGS: AppSettings = {
     effort: 'medium',
     targetLanguage: 'English'
   }
+}
+
+/** Reader settings not exposed on the Settings page; defaults for every book. */
+export const DEFAULT_READER_EXTRAS: Pick<ReaderPrefs, 'flow' | 'pdfZoom'> = {
+  flow: 'paginated',
+  pdfZoom: 'page-width'
+}
+
+/** App-wide reader defaults overlaid with a book's own overrides. */
+export function effectiveReaderPrefs(
+  defaults: AppSettings['reader'],
+  overrides: Partial<ReaderPrefs> | null | undefined
+): ReaderPrefs {
+  return { ...defaults, ...DEFAULT_READER_EXTRAS, ...(overrides ?? {}) }
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

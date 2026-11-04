@@ -98,5 +98,8 @@ export const migrations: string[] = [
     content,
     tokenize = 'unicode61 remove_diacritics 2'
   );
+  `,
+  /* 3: per-book reader preferences (theme, font size, zoom...) */ `
+  ALTER TABLE books ADD COLUMN reader_prefs TEXT;
   `
 ]

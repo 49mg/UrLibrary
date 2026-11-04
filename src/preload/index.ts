@@ -52,6 +52,14 @@ const api = {
     runOcr: (id: string, language: InvokeArgs<'books:runOcr'>['language']) =>
       invoke('books:runOcr', { id, language })
   },
+  reader: {
+    open: (id: string) => invoke('reader:open', { id }),
+    saveProgress: (id: string, location: string, progress: number) =>
+      invoke('reader:saveProgress', { id, location, progress }),
+    savePrefs: (id: string, prefs: InvokeArgs<'reader:savePrefs'>['prefs']) =>
+      invoke('reader:savePrefs', { id, prefs }),
+    html: (id: string) => invoke('reader:html', { id })
+  },
   library: {
     openFolder: () => invoke('library:openFolder'),
     importDialog: (mode: 'files' | 'folder') => invoke('library:importDialog', { mode }),

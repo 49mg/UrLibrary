@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import type { ExtractOptions, ExtractResult, ExtractedChapter } from '../types'
-import type { Block } from '../html'
+import { htmlToBlocks } from '../html'
+import { renderMarkdown } from '../markdown'
 import { cleanText, decodeText, toParagraphs } from '../textUtils'
 import { blocksToChapters } from './sections'
 
@@ -62,54 +63,12 @@ export function splitPlainText(text: string): ExtractedChapter[] {
   return chapters
 }
 
-export function markdownToBlocks(md: string): Block[] {
-  const blocks: Block[] = []
-  let para: string[] = []
-  let inFence = false
-  const flush = (): void => {
-    const t = cleanText(para.join(' '))
-    if (t) blocks.push({ kind: 'p', text: t })
-    para = []
-  }
-  for (const raw of md.replace(/\r\n?/g, '\n').split('\n')) {
-    if (/^\s*(```|~~~)/.test(raw)) {
-      inFence = !inFence
-      flush()
-      continue
-    }
-    if (inFence) {
-      if (raw.trim()) blocks.push({ kind: 'p', text: raw })
-      continue
-    }
-    const h = raw.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/)
-    if (h) {
-      flush()
-      blocks.push({ kind: `h${h[1].length}` as Block['kind'], text: cleanText(h[2]) })
-      continue
-    }
-    if (!raw.trim()) {
-      flush()
-      continue
-    }
-    // Strip common inline markdown so search and AI see clean text.
-    para.push(
-      raw
-        .replace(/^\s*([-*+]|\d+\.)\s+/, '')
-        .replace(/^\s*>\s?/, '')
-        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-        .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-        .replace(/(\*\*|__|\*|_|`)/g, '')
-    )
-  }
-  flush()
-  return blocks
-}
-
 export async function extractPlain(opts: ExtractOptions): Promise<ExtractResult> {
   const raw = decodeText(new Uint8Array(await readFile(opts.filePath)))
   opts.onProgress?.(0.5)
   if (opts.format === 'md') {
-    const blocks = markdownToBlocks(raw)
+    // Same Markdown → HTML as the reader, so `heading:<n>` locations line up.
+    const blocks = htmlToBlocks(renderMarkdown(raw))
     const firstH1 = blocks.find((b) => b.kind === 'h1')?.text ?? null
     return {
       meta: { title: firstH1 },

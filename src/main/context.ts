@@ -40,7 +40,7 @@ export function createContext(emit: Emit): AppContext {
     books,
     files,
     jobs,
-    extract: runInWorker,
+    extract: (task, onProgress, signal) => runInWorker(task, onProgress, signal),
     ocrCachePath: join(userData, 'ocr-data'),
     onChanged: (bookId) => emit('library:changed', { bookId })
   })

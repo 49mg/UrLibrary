@@ -10,7 +10,8 @@ Object.defineProperty(process, 'type', { value: undefined, configurable: true, w
 
 import { extractBook } from '../import/extract'
 import { ocrPdf } from '../import/ocr'
-import type { WorkerMessage, WorkerTask } from './protocol'
+import { renderBookHtml } from '../import/render'
+import type { WorkerMessage, WorkerResults, WorkerTask } from './protocol'
 
 const port = process.parentPort
 
@@ -29,20 +30,28 @@ port.once('message', async (e: { data: WorkerTask }) => {
     }
   }
   try {
-    const result =
-      task.type === 'extract'
-        ? await extractBook({
-            filePath: task.filePath,
-            format: task.format,
-            bookDir: task.bookDir,
-            onProgress
-          })
-        : await ocrPdf({
-            filePath: task.filePath,
-            language: task.language,
-            cachePath: task.cachePath,
-            onProgress
-          })
+    let result: WorkerResults[keyof WorkerResults]
+    switch (task.type) {
+      case 'extract':
+        result = await extractBook({
+          filePath: task.filePath,
+          format: task.format,
+          bookDir: task.bookDir,
+          onProgress
+        })
+        break
+      case 'ocr':
+        result = await ocrPdf({
+          filePath: task.filePath,
+          language: task.language,
+          cachePath: task.cachePath,
+          onProgress
+        })
+        break
+      case 'html':
+        result = { html: await renderBookHtml(task.filePath, task.format) }
+        break
+    }
     send({ type: 'result', result })
   } catch (err) {
     send({ type: 'error', message: err instanceof Error ? err.message : String(err) })

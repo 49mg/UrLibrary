@@ -86,6 +86,31 @@ export interface BookPatch {
   status?: ReadingStatus
 }
 
+export type ReaderFlow = 'paginated' | 'scrolled'
+export type PdfZoom = 'page-width' | 'page-fit' | 'auto' | number
+
+/** Effective reading settings for one book: app defaults overlaid with the book's own choices. */
+export interface ReaderPrefs {
+  theme: ReaderTheme
+  fontFamily: ReaderFont
+  fontSize: number
+  lineHeight: number
+  /** EPUB only */
+  flow: ReaderFlow
+  /** PDF only */
+  pdfZoom: PdfZoom
+}
+
+/** Everything the reader needs to open a book where the user left off. */
+export interface ReaderSession {
+  book: BookDetails
+  /** book:// URL of the original file */
+  fileUrl: string
+  /** Last saved position, e.g. `page:12`, `cfi:epubcfi(...)`, `scroll:0.42` */
+  location: string | null
+  prefs: ReaderPrefs
+}
+
 export interface ImportResult {
   imported: Array<{ id: string; title: string }>
   duplicates: Array<{ id: string; title: string; path: string }>
@@ -159,6 +184,14 @@ export interface IpcInvokeMap {
   'books:showInFolder': { args: { id: string }; result: void }
   'books:reextract': { args: { id: string }; result: void }
   'books:runOcr': { args: { id: string; language: OcrLanguage }; result: void }
+  'reader:open': { args: { id: string }; result: ReaderSession }
+  'reader:saveProgress': {
+    args: { id: string; location: string; progress: number }
+    result: { status: ReadingStatus }
+  }
+  'reader:savePrefs': { args: { id: string; prefs: Partial<ReaderPrefs> }; result: ReaderPrefs }
+  /** DOCX, TXT and Markdown rendered to HTML (unsanitized; the renderer sanitizes it). */
+  'reader:html': { args: { id: string }; result: { html: string } }
   'library:openFolder': { args: void; result: void }
   'library:importDialog': { args: { mode: 'files' | 'folder' }; result: ImportResult | null }
   'library:importPaths': { args: { paths: string[] }; result: ImportResult }

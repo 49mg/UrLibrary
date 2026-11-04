@@ -17,17 +17,25 @@ export function blocksToChapters(blocks: Block[], fallbackTitle = 'Full text'): 
 
   if (splitLevel === undefined) {
     const paragraphs = blocks.map((b) => b.text)
-    return paragraphs.length ? [{ title: fallbackTitle, location: 'section:0', paragraphs }] : []
+    return paragraphs.length ? [{ title: fallbackTitle, location: 'start', paragraphs }] : []
   }
 
   const chapters: ExtractedChapter[] = []
   let current: ExtractedChapter | null = null
   const preface: string[] = []
+  // Locations are `heading:<n>`, the n-th heading in the document (0-based), so the reader can jump
+  // to the same element in the rendered HTML without re-deriving chapter boundaries.
+  let headingIndex = -1
   for (const b of blocks) {
+    if (b.kind !== 'p') headingIndex++
     // A lone higher-level heading before the first chapter is the document title, not a chapter.
     if (b.kind !== 'p' && LEVEL[b.kind] < splitLevel && !current) continue
     if (b.kind !== 'p' && LEVEL[b.kind] <= splitLevel) {
-      current = { title: b.text.split('\n')[0], location: '', paragraphs: [] }
+      current = {
+        title: b.text.split('\n')[0],
+        location: `heading:${headingIndex}`,
+        paragraphs: []
+      }
       chapters.push(current)
       continue
     }
@@ -35,10 +43,8 @@ export function blocksToChapters(blocks: Block[], fallbackTitle = 'Full text'): 
     else preface.push(b.text)
   }
   if (preface.join(' ').length > 200)
-    chapters.unshift({ title: 'Introduction', location: '', paragraphs: preface })
+    chapters.unshift({ title: 'Introduction', location: 'start', paragraphs: preface })
   else if (preface.length && chapters[0]) chapters[0].paragraphs.unshift(...preface)
 
-  const kept = chapters.filter((c) => c.paragraphs.length > 0)
-  kept.forEach((c, i) => (c.location = `section:${i}`))
-  return kept
+  return chapters.filter((c) => c.paragraphs.length > 0)
 }
