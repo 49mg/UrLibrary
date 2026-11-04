@@ -48,16 +48,87 @@ export interface ApiKeyTestResult {
 
 export type BookFormat = 'pdf' | 'epub' | 'docx' | 'txt' | 'md'
 
+export type ReadingStatus = 'unread' | 'reading' | 'finished'
+/** pending → processing → done | needs_ocr | error */
+export type TextStatus = 'pending' | 'processing' | 'done' | 'needs_ocr' | 'error'
+
 export interface BookSummary {
   id: string
   title: string
   author: string | null
   format: BookFormat
   source: string
+  language: string | null
   coverUrl: string | null
   addedAt: string
+  lastOpenedAt: string | null
   progress: number
+  status: ReadingStatus
+  textStatus: TextStatus
+  pageCount: number | null
+  wordCount: number | null
+  collectionIds: string[]
 }
+
+export interface BookDetails extends BookSummary {
+  description: string | null
+  originalName: string | null
+  sizeBytes: number | null
+  textError: string | null
+}
+
+export interface BookPatch {
+  id: string
+  title?: string
+  author?: string | null
+  language?: string | null
+  description?: string | null
+  status?: ReadingStatus
+}
+
+export interface ImportResult {
+  imported: Array<{ id: string; title: string }>
+  duplicates: Array<{ id: string; title: string; path: string }>
+  failed: Array<{ path: string; reason: string }>
+}
+
+export interface Collection {
+  id: string
+  name: string
+  bookCount: number
+}
+
+export interface SearchHit {
+  bookId: string
+  bookTitle: string
+  chunkId: string
+  chapter: string | null
+  location: string
+  /** Text with matches wrapped in SNIPPET_START / SNIPPET_END markers (render as <mark>). */
+  snippet: string
+}
+
+export interface SearchResults {
+  books: BookSummary[]
+  hits: SearchHit[]
+}
+
+export const SNIPPET_START = '\u0001'
+export const SNIPPET_END = '\u0002'
+
+export const OCR_LANGUAGES = [
+  { code: 'eng', label: 'English' },
+  { code: 'ara', label: 'Arabic' },
+  { code: 'fra', label: 'French' },
+  { code: 'deu', label: 'German' },
+  { code: 'spa', label: 'Spanish' },
+  { code: 'ita', label: 'Italian' },
+  { code: 'por', label: 'Portuguese' },
+  { code: 'rus', label: 'Russian' },
+  { code: 'tur', label: 'Turkish' },
+  { code: 'chi_sim', label: 'Chinese (Simplified)' }
+] as const
+export type OcrLanguage = (typeof OCR_LANGUAGES)[number]['code']
 
 export type JobKind = 'import' | 'download' | 'ai' | 'ocr'
 export type JobStatus = 'queued' | 'running' | 'done' | 'error' | 'cancelled'
@@ -69,6 +140,7 @@ export interface Job {
   status: JobStatus
   /** 0..1, or null when indeterminate */
   progress: number | null
+  bookId?: string
   error?: string
 }
 
@@ -81,12 +153,31 @@ export interface IpcInvokeMap {
   'apiKey:clear': { args: void; result: ApiKeyStatus }
   'apiKey:test': { args: void; result: ApiKeyTestResult }
   'books:list': { args: void; result: BookSummary[] }
+  'books:get': { args: { id: string }; result: BookDetails }
+  'books:update': { args: BookPatch; result: BookDetails }
+  'books:delete': { args: { id: string }; result: void }
+  'books:showInFolder': { args: { id: string }; result: void }
+  'books:reextract': { args: { id: string }; result: void }
+  'books:runOcr': { args: { id: string; language: OcrLanguage }; result: void }
   'library:openFolder': { args: void; result: void }
+  'library:importDialog': { args: { mode: 'files' | 'folder' }; result: ImportResult | null }
+  'library:importPaths': { args: { paths: string[] }; result: ImportResult }
+  'search:fullText': { args: { query: string; limit?: number }; result: SearchResults }
+  'collections:list': { args: void; result: Collection[] }
+  'collections:create': { args: { name: string }; result: Collection }
+  'collections:rename': { args: { id: string; name: string }; result: void }
+  'collections:delete': { args: { id: string }; result: void }
+  'collections:addBook': { args: { collectionId: string; bookId: string }; result: void }
+  'collections:removeBook': { args: { collectionId: string; bookId: string }; result: void }
+  'jobs:list': { args: void; result: Job[] }
+  'jobs:cancel': { args: { id: string }; result: void }
 }
 
 export interface IpcEventMap {
   'jobs:update': Job
   'settings:changed': AppSettings
+  /** Books, collections or extracted text changed; the UI should refetch. */
+  'library:changed': { bookId?: string }
 }
 
 export type InvokeChannel = keyof IpcInvokeMap
@@ -94,7 +185,11 @@ export type InvokeArgs<K extends InvokeChannel> = IpcInvokeMap[K]['args']
 export type InvokeResult<K extends InvokeChannel> = IpcInvokeMap[K]['result']
 export type EventChannel = keyof IpcEventMap
 
-export const EVENT_CHANNELS: readonly EventChannel[] = ['jobs:update', 'settings:changed']
+export const EVENT_CHANNELS: readonly EventChannel[] = [
+  'jobs:update',
+  'settings:changed',
+  'library:changed'
+]
 
 /** Every invoke goes over the wire wrapped in this envelope so errors keep a code and message. */
 export type IpcEnvelope<T> =

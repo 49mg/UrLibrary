@@ -11,6 +11,10 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+  # Native canvas binary and Tesseract's worker scripts must be real files on disk.
+  - node_modules/@napi-rs/**
+  - node_modules/tesseract.js/**
+  - node_modules/tesseract.js-core/**
 win:
   executableName: ur-library
 nsis:

@@ -3,7 +3,10 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router'
 import { Sidebar } from './components/Sidebar'
 import { Toaster } from './components/Toaster'
 import { LibraryPage } from './pages/LibraryPage'
-import { AiStudioPage, DiscoverPage, ReaderPage } from './pages/Placeholders'
+import { AiStudioPage, DiscoverPage } from './pages/Placeholders'
+import { ReaderPage } from './pages/ReaderPage'
+import { DropZone } from './components/DropZone'
+import { subscribeLibrary, useLibrary } from './stores/library'
 import { SettingsPage } from './pages/SettingsPage'
 import { applyTheme, subscribeSettings, useSettings } from './stores/settings'
 import { subscribeJobs } from './stores/jobs'
@@ -17,11 +20,14 @@ function App(): React.JSX.Element {
       .getState()
       .load()
       .catch((e: Error) => toast.error(`Could not load settings: ${e.message}`))
+    void useLibrary.getState().refresh()
     const offSettings = subscribeSettings()
     const offJobs = subscribeJobs()
+    const offLibrary = subscribeLibrary()
     return () => {
       offSettings()
       offJobs()
+      offLibrary()
     }
   }, [])
 
@@ -37,12 +43,14 @@ function App(): React.JSX.Element {
             <Route path="/library" element={<LibraryPage />} />
             <Route path="/discover" element={<DiscoverPage />} />
             <Route path="/reader" element={<ReaderPage />} />
+            <Route path="/reader/:bookId" element={<ReaderPage />} />
             <Route path="/ai" element={<AiStudioPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>
         </main>
       </div>
       <Toaster />
+      <DropZone />
     </HashRouter>
   )
 }

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import {
   EVENT_CHANNELS,
   type EventChannel,
@@ -43,10 +43,38 @@ const api = {
     test: () => invoke('apiKey:test')
   },
   books: {
-    list: () => invoke('books:list')
+    list: () => invoke('books:list'),
+    get: (id: string) => invoke('books:get', { id }),
+    update: (patch: InvokeArgs<'books:update'>) => invoke('books:update', patch),
+    delete: (id: string) => invoke('books:delete', { id }),
+    showInFolder: (id: string) => invoke('books:showInFolder', { id }),
+    reextract: (id: string) => invoke('books:reextract', { id }),
+    runOcr: (id: string, language: InvokeArgs<'books:runOcr'>['language']) =>
+      invoke('books:runOcr', { id, language })
   },
   library: {
-    openFolder: () => invoke('library:openFolder')
+    openFolder: () => invoke('library:openFolder'),
+    importDialog: (mode: 'files' | 'folder') => invoke('library:importDialog', { mode }),
+    importPaths: (paths: string[]) => invoke('library:importPaths', { paths }),
+    /** Real filesystem path of a dropped File (sandboxed renderers can't read File.path). */
+    pathForFile: (file: File): string => webUtils.getPathForFile(file)
+  },
+  search: {
+    fullText: (query: string, limit?: number) => invoke('search:fullText', { query, limit })
+  },
+  collections: {
+    list: () => invoke('collections:list'),
+    create: (name: string) => invoke('collections:create', { name }),
+    rename: (id: string, name: string) => invoke('collections:rename', { id, name }),
+    delete: (id: string) => invoke('collections:delete', { id }),
+    addBook: (collectionId: string, bookId: string) =>
+      invoke('collections:addBook', { collectionId, bookId }),
+    removeBook: (collectionId: string, bookId: string) =>
+      invoke('collections:removeBook', { collectionId, bookId })
+  },
+  jobs: {
+    list: () => invoke('jobs:list'),
+    cancel: (id: string) => invoke('jobs:cancel', { id })
   },
   on
 }

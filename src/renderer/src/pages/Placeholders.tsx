@@ -1,4 +1,4 @@
-import { BookOpen, Compass, Sparkles } from 'lucide-react'
+import { Compass, Sparkles } from 'lucide-react'
 import { EmptyState, PageHeader } from '../components/ui'
 
 export function DiscoverPage(): React.JSX.Element {
@@ -8,17 +8,6 @@ export function DiscoverPage(): React.JSX.Element {
       <EmptyState icon={Compass} title="Book search is coming next">
         Search Project Gutenberg, Open Library, Internet Archive and more, then download books
         straight into your library.
-      </EmptyState>
-    </>
-  )
-}
-
-export function ReaderPage(): React.JSX.Element {
-  return (
-    <>
-      <PageHeader title="Reader" />
-      <EmptyState icon={BookOpen} title="No book open">
-        Open a book from your library to start reading. PDF, EPUB and Word files are supported.
       </EmptyState>
     </>
   )

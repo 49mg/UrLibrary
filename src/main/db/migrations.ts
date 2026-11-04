@@ -75,5 +75,28 @@ export const migrations: string[] = [
     content,
     tokenize = 'unicode61 remove_diacritics 2'
   );
+  `,
+  /* 2: import pipeline bookkeeping */ `
+  ALTER TABLE books ADD COLUMN text_status TEXT NOT NULL DEFAULT 'pending'
+    CHECK (text_status IN ('pending','processing','done','needs_ocr','error'));
+  ALTER TABLE books ADD COLUMN text_error TEXT;
+  ALTER TABLE books ADD COLUMN page_count INTEGER;
+  ALTER TABLE books ADD COLUMN word_count INTEGER;
+  ALTER TABLE books ADD COLUMN description TEXT;
+  ALTER TABLE books ADD COLUMN original_name TEXT;
+  ALTER TABLE books ADD COLUMN size_bytes INTEGER;
+  ALTER TABLE books ADD COLUMN meta_edited INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX book_collections_collection ON book_collections(collection_id);
+
+  -- FTS5 tables can't be altered; book_text was always empty before this migration.
+  DROP TABLE book_text;
+  CREATE VIRTUAL TABLE book_text USING fts5(
+    book_id  UNINDEXED,
+    chunk_id UNINDEXED,
+    chapter  UNINDEXED,
+    location UNINDEXED,
+    content,
+    tokenize = 'unicode61 remove_diacritics 2'
+  );
   `
 ]
