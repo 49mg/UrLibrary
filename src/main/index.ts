@@ -10,6 +10,8 @@ import {
 import { readFile, writeFile } from 'node:fs/promises'
 import { annotationsToMarkdown } from './export/markdown'
 import { annotatePdf } from './export/pdf'
+import { markdownToDocx, versionHtml } from './export/version'
+import { renderMarkdown } from './import/markdown'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -18,11 +20,24 @@ import { registerIpc } from './ipc/register'
 import { handleBookProtocol, registerBookSchemePrivileges } from './protocol'
 import { testApiKey } from './services/apiKeyTester'
 import { AppError } from './ipc/handler'
-import type { BookDetails, EventChannel, IpcEventMap } from '../shared/ipc'
+import type { BookDetails, BookVersion, EventChannel, IpcEventMap } from '../shared/ipc'
 import { effectiveReaderPrefs } from '../shared/defaults'
 import { runInWorker } from './workers/runWorker'
 
 registerBookSchemePrivileges()
+preferSystemKeyring()
+
+/**
+ * Chromium only auto-detects the Linux keyring on desktops it knows (GNOME, KDE…). On others
+ * (i3, Sway, …) it silently falls back to a weak built-in store, even when gnome-keyring or another
+ * Secret Service provider is running. Ask for libsecret explicitly unless the user chose a store.
+ */
+function preferSystemKeyring(): void {
+  if (process.platform !== 'linux' || app.commandLine.hasSwitch('password-store')) return
+  const desktop = (process.env.XDG_CURRENT_DESKTOP ?? '').toUpperCase()
+  if (desktop.includes('KDE')) return // KWallet is detected correctly on KDE
+  app.commandLine.appendSwitch('password-store', 'gnome-libsecret')
+}
 
 let mainWindow: BrowserWindow | null = null
 
@@ -68,6 +83,35 @@ function createWindow(ctx: AppContext): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
   return win
+}
+
+/** A version as the renderer sees it (no file system path). */
+function publicVersion(v: BookVersion & { filePath: string }): BookVersion {
+  const { id, bookId, kind, title, model, createdAt, inputTokens, outputTokens } = v
+  return { id, bookId, kind, title, model, createdAt, inputTokens, outputTokens }
+}
+
+/** Renders HTML in a hidden, sandboxed window and prints it to PDF. */
+async function printHtmlToPdf(html: string): Promise<Buffer> {
+  const win = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      javascript: false
+    }
+  })
+  try {
+    await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+    return await win.webContents.printToPDF({
+      pageSize: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true
+    })
+  } finally {
+    win.destroy()
+  }
 }
 
 async function saveDialog(opts: SaveDialogOptions): Promise<string | null> {
@@ -166,18 +210,28 @@ app.whenReady().then(() => {
         throw new AppError('BUSY', 'This book is already being processed.')
       ctx.importer.queueOcr(id, language)
     },
-    'reader:open': ({ id }) => {
+    'reader:open': ({ id, versionId }) => {
       const book = requireBook(id)
       const info = ctx.books.getFileInfo(id)
-      const saved = ctx.books.open(id)
+      const version = versionId ? ctx.aiRepo.version(versionId) : null
+      if (versionId && (!version || version.bookId !== id)) {
+        throw new AppError('NOT_FOUND', 'That version no longer exists.')
+      }
+      // Reading an AI version doesn't touch the original book's reading position.
+      const saved = version ? { location: null, prefs: {} } : ctx.books.open(id)
       if (!info || !saved)
         throw new AppError('NOT_FOUND', 'That book is no longer in your library.')
-      emitLibraryChanged(id)
+      if (!version) emitLibraryChanged(id)
       return {
-        book,
-        fileUrl: `book://${id}/${info.filePath}`,
+        book: version ? { ...book, format: 'md' as const } : book,
+        versions: ctx.aiRepo.versions(id),
+        version: version ? publicVersion(version) : null,
+        fileUrl: `book://${id}/${version ? version.filePath : info.filePath}`,
         location: saved.location,
-        prefs: effectiveReaderPrefs(ctx.settings.get().reader, saved.prefs)
+        prefs: effectiveReaderPrefs(
+          ctx.settings.get().reader,
+          version ? ctx.books.open(id)?.prefs : saved.prefs
+        )
       }
     },
     'reader:saveProgress': ({ id, location, progress }) => {
@@ -194,7 +248,12 @@ app.whenReady().then(() => {
       requireBook(id)
       return effectiveReaderPrefs(ctx.settings.get().reader, ctx.books.saveReaderPrefs(id, prefs))
     },
-    'reader:html': async ({ id }) => {
+    'reader:html': async ({ id, versionId }) => {
+      if (versionId) {
+        const v = await ctx.ai.versionMarkdown(versionId)
+        if (v.bookId !== id) throw new AppError('NOT_FOUND', 'That version no longer exists.')
+        return { html: renderMarkdown(v.markdown) }
+      }
       const info = ctx.books.getFileInfo(id)
       if (!info) throw new AppError('NOT_FOUND', 'That book is no longer in your library.')
       if (info.format === 'pdf' || info.format === 'epub') {
@@ -214,7 +273,7 @@ app.whenReady().then(() => {
         throw new AppError('RENDER_FAILED', `Couldn’t open this file: ${(err as Error).message}`)
       }
     },
-    'annotations:list': ({ bookId }) => ctx.annotations.list(bookId),
+    'annotations:list': ({ bookId, versionId }) => ctx.annotations.list(bookId, versionId ?? null),
     'annotations:create': (a) => {
       requireBook(a.bookId)
       const created = ctx.annotations.create(a)
@@ -275,6 +334,45 @@ app.whenReady().then(() => {
     'discover:search': ({ provider, query }) => ctx.discover.search(provider, query),
     'discover:details': ({ provider, id }) => ctx.discover.details(provider, id),
     'discover:download': ({ provider, id, format }) => ctx.discover.download(provider, id, format),
+    'ai:chapters': ({ bookId }) => ctx.ai.chapters(bookId),
+    'ai:estimate': (req) => ctx.ai.estimate(req),
+    'ai:start': (req) => ctx.ai.start(req),
+    'ai:jobs': ({ bookId }) => ctx.ai.jobs(bookId),
+    'ai:part': ({ jobId, idx }) => {
+      const p = ctx.aiRepo.part(jobId, idx)
+      if (!p) throw new AppError('NOT_FOUND', 'That part no longer exists.')
+      return p
+    },
+    'ai:pause': ({ id }) => ctx.ai.pause(id),
+    'ai:resume': ({ id }) => ctx.ai.resume(id),
+    'ai:cancel': ({ id }) => ctx.ai.cancel(id),
+    'ai:deleteJob': ({ id }) => ctx.ai.deleteJob(id),
+    'ai:ask': ({ requestId, bookId, text, action, context }) =>
+      ctx.ai.ask(requestId, bookId, text, action, context),
+    'ai:askCancel': ({ requestId }) => ctx.ai.cancelAsk(requestId),
+    'versions:list': ({ bookId }) => ctx.aiRepo.versions(bookId),
+    'versions:rename': ({ id, title }) => {
+      const v = ctx.aiRepo.version(id)
+      if (!v) throw new AppError('NOT_FOUND', 'That version no longer exists.')
+      ctx.aiRepo.renameVersion(id, title)
+      emitLibraryChanged(v.bookId)
+    },
+    'versions:delete': ({ id }) => ctx.ai.deleteVersion(id),
+    'versions:export': async ({ id, format }) => {
+      const v = await ctx.ai.versionMarkdown(id)
+      const book = ctx.books.get(v.bookId)
+      const name = safeFileName(`${book?.title ?? 'Book'} — ${v.title}`)
+      const res = await saveDialog({
+        title: 'Export version',
+        defaultPath: `${name}.${format}`,
+        filters: [{ name: format.toUpperCase(), extensions: [format] }]
+      })
+      if (!res) return null
+      if (format === 'md') await writeFile(res, v.markdown, 'utf8')
+      else if (format === 'docx') await writeFile(res, await markdownToDocx(v.title, v.markdown))
+      else await writeFile(res, await printHtmlToPdf(versionHtml(v.title, v.markdown)))
+      return { path: res }
+    },
     'library:openFolder': async () => {
       const err = await shell.openPath(ctx.files.root)
       if (err) throw new AppError('OPEN_FAILED', err)
@@ -337,6 +435,7 @@ app.whenReady().then(() => {
 
   mainWindow = createWindow(ctx)
   ctx.importer.resumeInterrupted()
+  ctx.ai.resumeInterrupted()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow(ctx)

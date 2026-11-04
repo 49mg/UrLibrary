@@ -52,6 +52,16 @@ published in 1930 or earlier, and lending-library items are excluded. Download U
 the main process (never taken from the UI), must be https on the source's own host, are size-limited,
 and are checked by their first bytes before import. Catalog responses are cached in SQLite.
 
+**AI Studio:** uses Claude (`claude-opus-5-5`, adaptive thinking, effort from Settings) through the
+user's own Anthropic API key, stored with Electron `safeStorage` (on Linux the app asks for the
+libsecret keyring explicitly, since Chromium only auto-detects it on GNOME/KDE). Books are split
+into ~15k-token parts at paragraph boundaries; each part streams to the UI and is saved in SQLite
+as it finishes, so jobs can pause/resume and survive restarts. Server-side refusal fallback
+(`fallbacks: "default"`) is enabled. Results become Markdown "versions" next to the original (never
+modified), readable and annotatable in the reader, exportable to PDF, Word or Markdown. Book text
+is passed to the model as tagged content, never as instructions. Tests use a fake Anthropic API,
+so they never spend money.
+
 **Highlights & notes:** stored in SQLite, never written into the original file. Each one keeps a
 format-specific anchor (PDF page + rectangles as page fractions, EPUB CFI, or a text quote with
 surrounding context for DOCX/MD/TXT that is re-found if the text shifts — see

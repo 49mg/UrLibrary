@@ -24,6 +24,8 @@ import type { PendingSelection, ReaderHandle, ReaderPosition, SearchMatch, TocIt
 import { HighlightPopover, type PopoverState } from './HighlightPopover'
 import { NotesPanel } from './NotesPanel'
 import { useAnnotations } from './useAnnotations'
+import { AskAiPanel } from './AskAiPanel'
+import { ExportMenu } from '../components/ai/JobView'
 import { useLatest } from '../lib/useLatest'
 import { PAGE_COLORS } from './types'
 import { PdfReader } from './PdfReader'
@@ -386,7 +388,9 @@ export function ReaderView({
   }, [])
 
   // ---- highlights, notes, bookmarks ----
-  const { annotations, create, update, remove } = useAnnotations(book.id)
+  const version = session.version
+  const { annotations, create, update, remove } = useAnnotations(book.id, version?.id ?? null)
+  const [asking, setAsking] = useState<PendingSelection | null>(null)
   const annRef = useLatest(annotations)
   const [pop, setPop] = useState<PopoverState | null>(null)
   const [bookmarkId, setBookmarkId] = useState<string | null>(null)
@@ -453,8 +457,11 @@ export function ReaderView({
     timer.current = null
     const p = pending.current
     pending.current = null
-    if (p) window.api.reader.saveProgress(book.id, p.location, p.progress).catch(() => undefined)
-  }, [book.id])
+    // Reading an AI version doesn't move the bookmark-less position of the original book.
+    if (p && !version) {
+      window.api.reader.saveProgress(book.id, p.location, p.progress).catch(() => undefined)
+    }
+  }, [book.id, version])
   const onPosition = useCallback(
     (p: ReaderPosition) => {
       setPosition(p)
@@ -600,6 +607,27 @@ export function ReaderView({
           )}
           <div className="min-w-0 flex-1 px-3 text-center">
             <h1 className="truncate text-sm font-medium">{book.title}</h1>
+            {session.versions.length > 0 && (
+              <select
+                aria-label="Version"
+                value={version?.id ?? ''}
+                onChange={(e) =>
+                  navigate(
+                    e.target.value
+                      ? `/reader/${book.id}?version=${e.target.value}`
+                      : `/reader/${book.id}`
+                  )
+                }
+                className="mx-auto mt-0.5 block max-w-64 truncate rounded bg-transparent text-xs text-accent hover:bg-sunken"
+              >
+                <option value="">Original</option>
+                {session.versions.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.title}
+                  </option>
+                ))}
+              </select>
+            )}
             <p className="truncate text-xs text-muted" aria-live="polite">
               {position?.label ?? ' '}
             </p>
@@ -665,6 +693,7 @@ export function ReaderView({
               />
             )}
           </div>
+          {version && <ExportMenu versionId={version.id} />}
           <IconButton label="Open in AI Studio" onClick={() => navigate(`/ai?book=${book.id}`)}>
             <Sparkles size={18} />
           </IconButton>
@@ -767,6 +796,14 @@ export function ReaderView({
               pop.mode === 'edit' ? (annotations.find((a) => a.id === pop.id) ?? null) : null
             }
             onCreate={(c, n) => void createHighlight(c, n)}
+            onAsk={
+              pop.mode === 'new'
+                ? () => {
+                    setAsking(pop.sel)
+                    setPop(null)
+                  }
+                : undefined
+            }
             onUpdate={(patch) => pop.mode === 'edit' && void update(pop.id, patch)}
             onDelete={() => {
               if (pop.mode === 'edit') void remove(pop.id)
@@ -777,6 +814,29 @@ export function ReaderView({
         )}
       </div>
 
+      {asking && (
+        <AskAiPanel
+          bookId={book.id}
+          sel={asking}
+          onClose={() => setAsking(null)}
+          onSaveNote={(answer) => {
+            void create({
+              type: 'highlight',
+              anchor: asking.anchor,
+              location: asking.location,
+              chapter: asking.chapter,
+              sortKey: asking.sortKey,
+              text: asking.text,
+              color: 'blue',
+              note: answer
+            }).then((a) => {
+              if (a) toast.success('Saved as a note on this passage.')
+            })
+            asking.clear()
+            setAsking(null)
+          }}
+        />
+      )}
       <div className="h-1 shrink-0" style={{ background: colors.bg }} aria-hidden>
         <div
           className="h-full bg-accent/60 transition-[width]"

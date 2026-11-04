@@ -127,13 +127,13 @@ export function HtmlReader({
   useEffect(() => {
     let cancelled = false
     window.api.reader
-      .html(session.book.id)
+      .html(session.book.id, session.version?.id)
       .then((r) => !cancelled && setHtml(sanitize(r.html)))
       .catch((e: Error) => !cancelled && cb.current.onError(e.message))
     return () => {
       cancelled = true
     }
-  }, [session.book.id, cb])
+  }, [session.book.id, session.version?.id, cb])
 
   const goTo = (location: string): void => {
     const scroller = scrollRef.current

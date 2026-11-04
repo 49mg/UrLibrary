@@ -3,7 +3,8 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router'
 import { Sidebar } from './components/Sidebar'
 import { Toaster } from './components/Toaster'
 import { LibraryPage } from './pages/LibraryPage'
-import { AiStudioPage } from './pages/Placeholders'
+import { AiStudioPage } from './pages/AiStudioPage'
+import { subscribeAi } from './stores/ai'
 import { DiscoverPage } from './pages/DiscoverPage'
 import { ReaderPage } from './pages/ReaderPage'
 import { DropZone } from './components/DropZone'
@@ -28,7 +29,9 @@ function App(): React.JSX.Element {
     const offSettings = subscribeSettings()
     const offJobs = subscribeJobs()
     const offLibrary = subscribeLibrary()
+    const offAi = subscribeAi()
     return () => {
+      offAi()
       offSettings()
       offJobs()
       offLibrary()

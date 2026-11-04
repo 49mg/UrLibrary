@@ -21,6 +21,7 @@ interface Row {
   text: string | null
   note: string | null
   color: HighlightColor | null
+  version_id: string | null
   created_at: string
   updated_at: string
 }
@@ -45,23 +46,24 @@ function toAnnotation(r: Row): Annotation {
     text: r.text,
     note: r.note,
     color: r.color,
+    versionId: r.version_id,
     createdAt: r.created_at,
     updatedAt: r.updated_at
   }
 }
 
-/** Annotations of the original book only; AI versions (version_id) get their own later. */
+/** Annotations belong to the original book (version_id NULL) or to one AI version of it. */
 export class AnnotationsRepo {
   constructor(private db: Db) {}
 
-  list(bookId: string): Annotation[] {
+  list(bookId: string, versionId: string | null = null): Annotation[] {
     return (
       this.db
         .prepare(
-          `SELECT * FROM annotations WHERE book_id = ? AND version_id IS NULL
+          `SELECT * FROM annotations WHERE book_id = ? AND version_id IS ?
            ORDER BY sort_key, created_at`
         )
-        .all(bookId) as unknown as Row[]
+        .all(bookId, versionId) as unknown as Row[]
     ).map(toAnnotation)
   }
 
@@ -75,8 +77,8 @@ export class AnnotationsRepo {
     const id = randomUUID()
     this.db
       .prepare(
-        `INSERT INTO annotations (id, book_id, type, anchor_json, location, chapter, sort_key, text, note, color)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO annotations (id, book_id, type, anchor_json, location, chapter, sort_key, text, note, color, version_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         id,
@@ -88,7 +90,8 @@ export class AnnotationsRepo {
         a.sortKey,
         a.text ?? null,
         a.note?.trim() || null,
-        a.type === 'highlight' ? (a.color ?? 'yellow') : null
+        a.type === 'highlight' ? (a.color ?? 'yellow') : null,
+        a.versionId ?? null
       )
     return this.get(id) as Annotation
   }
@@ -125,7 +128,7 @@ export class AnnotationsRepo {
     type?: AnnotationType
     limit?: number
   }): AnnotationWithBook[] {
-    const where = ['a.version_id IS NULL']
+    const where: string[] = ['1 = 1']
     const vals: Array<string | number> = []
     const q = opts.query?.trim()
     if (q) {

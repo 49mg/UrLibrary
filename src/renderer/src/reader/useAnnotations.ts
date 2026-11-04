@@ -5,7 +5,11 @@ import { toast } from '../stores/toasts'
 const err = (e: unknown): string => (e instanceof Error ? e.message : String(e))
 
 /** A book's annotations, kept in reading order and in sync with changes made elsewhere. */
-export function useAnnotations(bookId: string): {
+export function useAnnotations(
+  bookId: string,
+  /** null = the original book; otherwise an AI version's own annotations */
+  versionId: string | null = null
+): {
   annotations: Annotation[]
   create: (a: Omit<NewAnnotation, 'bookId'>) => Promise<Annotation | null>
   update: (id: string, patch: { note?: string | null; color?: HighlightColor }) => Promise<void>
@@ -15,10 +19,10 @@ export function useAnnotations(bookId: string): {
 
   const reload = useCallback(() => {
     window.api.annotations
-      .list(bookId)
+      .list(bookId, versionId)
       .then(setAnnotations)
       .catch((e) => toast.error(`Couldn’t load notes: ${err(e)}`))
-  }, [bookId])
+  }, [bookId, versionId])
 
   useEffect(() => {
     reload()
@@ -34,7 +38,7 @@ export function useAnnotations(bookId: string): {
     annotations,
     create: async (a) => {
       try {
-        const created = await window.api.annotations.create({ ...a, bookId })
+        const created = await window.api.annotations.create({ ...a, bookId, versionId })
         setAnnotations((list) => sorted([...list.filter((x) => x.id !== created.id), created]))
         return created
       } catch (e) {

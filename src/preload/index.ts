@@ -55,15 +55,16 @@ const api = {
       invoke('books:runOcr', { id, language })
   },
   reader: {
-    open: (id: string) => invoke('reader:open', { id }),
+    open: (id: string, versionId?: string) => invoke('reader:open', { id, versionId }),
     saveProgress: (id: string, location: string, progress: number) =>
       invoke('reader:saveProgress', { id, location, progress }),
     savePrefs: (id: string, prefs: InvokeArgs<'reader:savePrefs'>['prefs']) =>
       invoke('reader:savePrefs', { id, prefs }),
-    html: (id: string) => invoke('reader:html', { id })
+    html: (id: string, versionId?: string) => invoke('reader:html', { id, versionId })
   },
   annotations: {
-    list: (bookId: string) => invoke('annotations:list', { bookId }),
+    list: (bookId: string, versionId?: string | null) =>
+      invoke('annotations:list', { bookId, versionId: versionId ?? null }),
     create: (a: InvokeArgs<'annotations:create'>) => invoke('annotations:create', a),
     update: (id: string, patch: Omit<InvokeArgs<'annotations:update'>, 'id'>) =>
       invoke('annotations:update', { id, ...patch }),
@@ -84,6 +85,25 @@ const api = {
     details: (provider: ProviderId, id: string) => invoke('discover:details', { provider, id }),
     download: (provider: ProviderId, id: string, format: CatalogFormat['format']) =>
       invoke('discover:download', { provider, id, format })
+  },
+  ai: {
+    chapters: (bookId: string) => invoke('ai:chapters', { bookId }),
+    estimate: (req: InvokeArgs<'ai:estimate'>) => invoke('ai:estimate', req),
+    start: (req: InvokeArgs<'ai:start'>) => invoke('ai:start', req),
+    jobs: (bookId?: string) => invoke('ai:jobs', { bookId }),
+    part: (jobId: string, idx: number) => invoke('ai:part', { jobId, idx }),
+    pause: (id: string) => invoke('ai:pause', { id }),
+    resume: (id: string) => invoke('ai:resume', { id }),
+    cancel: (id: string) => invoke('ai:cancel', { id }),
+    deleteJob: (id: string) => invoke('ai:deleteJob', { id }),
+    ask: (args: InvokeArgs<'ai:ask'>) => invoke('ai:ask', args),
+    askCancel: (requestId: string) => invoke('ai:askCancel', { requestId })
+  },
+  versions: {
+    list: (bookId: string) => invoke('versions:list', { bookId }),
+    rename: (id: string, title: string) => invoke('versions:rename', { id, title }),
+    delete: (id: string) => invoke('versions:delete', { id }),
+    export: (id: string, format: 'pdf' | 'docx' | 'md') => invoke('versions:export', { id, format })
   },
   library: {
     openFolder: () => invoke('library:openFolder'),

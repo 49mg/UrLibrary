@@ -113,6 +113,10 @@ export interface ReaderPrefs {
 /** Everything the reader needs to open a book where the user left off. */
 export interface ReaderSession {
   book: BookDetails
+  /** AI versions of this book, newest first. */
+  versions: BookVersion[]
+  /** Set when reading an AI version instead of the original. */
+  version: BookVersion | null
   /** book:// URL of the original file */
   fileUrl: string
   /** Last saved position, e.g. `page:12`, `cfi:epubcfi(...)`, `scroll:0.42` */
@@ -159,6 +163,100 @@ export interface ProviderInfo {
   enabled: boolean
 }
 
+// ---------- AI Studio ----------
+
+export type AiAction =
+  'summarize' | 'simplify' | 'translate' | 'rewrite' | 'study-notes' | 'quiz' | 'custom'
+
+export interface AiActionOptions {
+  /** summarize */
+  length?: 'brief' | 'detailed'
+  /** simplify */
+  level?: 'child' | 'teen' | 'plain'
+  /** translate */
+  language?: string
+  /** rewrite, e.g. "modern English", "for a 10-year-old", "as a screenplay" */
+  style?: string
+  /** custom */
+  instruction?: string
+}
+
+export type AiScope =
+  | { kind: 'book' }
+  | { kind: 'chapters'; indexes: number[] }
+  /** A passage, e.g. the current selection in the reader. */
+  | { kind: 'text'; text: string; label?: string }
+
+export interface AiJobRequest {
+  bookId: string
+  action: AiAction
+  options: AiActionOptions
+  scope: AiScope
+}
+
+export interface AiEstimate {
+  parts: number
+  inputTokens: number
+  /** A rough guess based on the action (a summary is far shorter than a translation). */
+  outputTokensEstimate: number
+  costUsd: number
+  model: string
+}
+
+export interface ChapterInfo {
+  index: number
+  title: string
+  chars: number
+}
+
+export type AiJobStatus = 'queued' | 'running' | 'paused' | 'done' | 'error' | 'cancelled'
+export type AiPartStatus = 'pending' | 'running' | 'done' | 'error'
+
+export interface AiJobPart {
+  idx: number
+  title: string
+  status: AiPartStatus
+  sourceChars: number
+  outputChars: number
+}
+
+export interface AiJob {
+  id: string
+  bookId: string
+  bookTitle: string
+  action: AiAction
+  title: string
+  status: AiJobStatus
+  model: string
+  parts: AiJobPart[]
+  error: string | null
+  versionId: string | null
+  inputTokens: number
+  outputTokens: number
+  createdAt: string
+}
+
+/** One part's original text and generated text, for the side-by-side view. */
+export interface AiPartDetail {
+  idx: number
+  title: string
+  source: string
+  output: string
+}
+
+export interface BookVersion {
+  id: string
+  bookId: string
+  kind: string
+  title: string
+  model: string | null
+  createdAt: string
+  inputTokens: number | null
+  outputTokens: number | null
+}
+
+export type AskAction = 'explain' | 'define' | 'translate' | 'simplify'
+
 export type AnnotationType = 'highlight' | 'bookmark'
 export const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'pink', 'purple'] as const
 export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number]
@@ -186,6 +284,8 @@ export interface Annotation {
   text: string | null
   note: string | null
   color: HighlightColor | null
+  /** Set when the annotation belongs to an AI version, not the original book. */
+  versionId: string | null
   createdAt: string
   updatedAt: string
 }
@@ -194,7 +294,7 @@ export type NewAnnotation = Pick<
   Annotation,
   'bookId' | 'type' | 'anchor' | 'location' | 'sortKey'
 > &
-  Partial<Pick<Annotation, 'chapter' | 'text' | 'note' | 'color'>>
+  Partial<Pick<Annotation, 'chapter' | 'text' | 'note' | 'color' | 'versionId'>>
 
 export interface AnnotationWithBook extends Annotation {
   bookTitle: string
@@ -275,15 +375,18 @@ export interface IpcInvokeMap {
   'books:showInFolder': { args: { id: string }; result: void }
   'books:reextract': { args: { id: string }; result: void }
   'books:runOcr': { args: { id: string; language: OcrLanguage }; result: void }
-  'reader:open': { args: { id: string }; result: ReaderSession }
+  'reader:open': { args: { id: string; versionId?: string }; result: ReaderSession }
   'reader:saveProgress': {
     args: { id: string; location: string; progress: number }
     result: { status: ReadingStatus }
   }
   'reader:savePrefs': { args: { id: string; prefs: Partial<ReaderPrefs> }; result: ReaderPrefs }
   /** DOCX, TXT and Markdown rendered to HTML (unsanitized; the renderer sanitizes it). */
-  'reader:html': { args: { id: string }; result: { html: string } }
-  'annotations:list': { args: { bookId: string }; result: Annotation[] }
+  'reader:html': { args: { id: string; versionId?: string }; result: { html: string } }
+  'annotations:list': {
+    args: { bookId: string; versionId?: string | null }
+    result: Annotation[]
+  }
   'annotations:create': { args: NewAnnotation; result: Annotation }
   'annotations:update': {
     args: { id: string; note?: string | null; color?: HighlightColor }
@@ -317,6 +420,28 @@ export interface IpcInvokeMap {
     /** existingBookId is set (and no job started) when this item is already in the library. */
     result: { jobId: string | null; existingBookId: string | null }
   }
+  'ai:chapters': { args: { bookId: string }; result: ChapterInfo[] }
+  'ai:estimate': { args: AiJobRequest; result: AiEstimate }
+  'ai:start': { args: AiJobRequest; result: AiJob }
+  'ai:jobs': { args: { bookId?: string }; result: AiJob[] }
+  'ai:part': { args: { jobId: string; idx: number }; result: AiPartDetail }
+  'ai:pause': { args: { id: string }; result: void }
+  'ai:resume': { args: { id: string }; result: void }
+  'ai:cancel': { args: { id: string }; result: void }
+  'ai:deleteJob': { args: { id: string }; result: void }
+  /** Quick question about a passage; the answer streams as 'ai:delta' events with requestId. */
+  'ai:ask': {
+    args: { requestId: string; bookId: string; text: string; action: AskAction; context?: string }
+    result: { text: string }
+  }
+  'ai:askCancel': { args: { requestId: string }; result: void }
+  'versions:list': { args: { bookId: string }; result: BookVersion[] }
+  'versions:rename': { args: { id: string; title: string }; result: void }
+  'versions:delete': { args: { id: string }; result: void }
+  'versions:export': {
+    args: { id: string; format: 'pdf' | 'docx' | 'md' }
+    result: { path: string } | null
+  }
   'library:openFolder': { args: void; result: void }
   'library:importDialog': { args: { mode: 'files' | 'folder' }; result: ImportResult | null }
   'library:importPaths': { args: { paths: string[] }; result: ImportResult }
@@ -337,6 +462,10 @@ export interface IpcEventMap {
   /** Books, collections or extracted text changed; the UI should refetch. */
   'library:changed': { bookId?: string }
   'annotations:changed': { bookId: string }
+  /** Any change to an AI job (status, a part finished, tokens). */
+  'ai:job': AiJob
+  /** Streamed text: for a job part (jobId + idx) or a quick question (requestId). */
+  'ai:delta': { jobId?: string; idx?: number; requestId?: string; text: string }
 }
 
 export type InvokeChannel = keyof IpcInvokeMap
@@ -348,7 +477,9 @@ export const EVENT_CHANNELS: readonly EventChannel[] = [
   'jobs:update',
   'settings:changed',
   'library:changed',
-  'annotations:changed'
+  'annotations:changed',
+  'ai:job',
+  'ai:delta'
 ]
 
 /** Every invoke goes over the wire wrapped in this envelope so errors keep a code and message. */

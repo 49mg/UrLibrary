@@ -121,5 +121,39 @@ export const migrations: string[] = [
     fetched_at INTEGER NOT NULL
   );
   CREATE INDEX books_source ON books(source, source_id);
+  `,
+  /* 6: AI Studio jobs (resumable, part by part) and version bookkeeping */ `
+  CREATE TABLE ai_jobs (
+    id            TEXT PRIMARY KEY,
+    book_id       TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    action        TEXT NOT NULL,
+    title         TEXT NOT NULL,
+    options_json  TEXT NOT NULL,
+    status        TEXT NOT NULL,
+    model         TEXT NOT NULL,
+    error         TEXT,
+    version_id    TEXT,
+    input_tokens  INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
+  CREATE INDEX ai_jobs_book ON ai_jobs(book_id);
+
+  CREATE TABLE ai_job_parts (
+    job_id        TEXT NOT NULL REFERENCES ai_jobs(id) ON DELETE CASCADE,
+    idx           INTEGER NOT NULL,
+    title         TEXT NOT NULL,
+    source        TEXT NOT NULL,
+    output        TEXT,
+    status        TEXT NOT NULL DEFAULT 'pending',
+    input_tokens  INTEGER,
+    output_tokens INTEGER,
+    PRIMARY KEY (job_id, idx)
+  );
+
+  ALTER TABLE versions ADD COLUMN input_tokens INTEGER;
+  ALTER TABLE versions ADD COLUMN output_tokens INTEGER;
+  CREATE INDEX annotations_version ON annotations(version_id);
   `
 ]

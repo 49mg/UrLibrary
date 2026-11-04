@@ -31,7 +31,13 @@ function NoBook(): React.JSX.Element {
   )
 }
 
-function OpenBook({ bookId }: { bookId: string }): React.JSX.Element {
+function OpenBook({
+  bookId,
+  versionId
+}: {
+  bookId: string
+  versionId: string | null
+}): React.JSX.Element {
   const [params] = useSearchParams()
   const target = params.get('loc')
   const [session, setSession] = useState<ReaderSession | null>(null)
@@ -40,13 +46,13 @@ function OpenBook({ bookId }: { bookId: string }): React.JSX.Element {
   useEffect(() => {
     let cancelled = false
     window.api.reader
-      .open(bookId)
+      .open(bookId, versionId ?? undefined)
       .then((s) => !cancelled && setSession(s))
       .catch((e: Error) => !cancelled && setError(e.message))
     return () => {
       cancelled = true
     }
-  }, [bookId])
+  }, [bookId, versionId])
 
   if (error) {
     return (
@@ -65,7 +71,9 @@ function OpenBook({ bookId }: { bookId: string }): React.JSX.Element {
 
 export function ReaderPage(): React.JSX.Element {
   const { bookId } = useParams()
+  const [params] = useSearchParams()
+  const versionId = params.get('version')
   if (!bookId) return <NoBook />
   // Key by book so switching books fully remounts (and flushes progress of the previous one).
-  return <OpenBook key={bookId} bookId={bookId} />
+  return <OpenBook key={`${bookId}:${versionId ?? ''}`} bookId={bookId} versionId={versionId} />
 }

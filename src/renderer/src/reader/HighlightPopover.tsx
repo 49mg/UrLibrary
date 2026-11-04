@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Copy, MessageSquarePlus, Trash2 } from 'lucide-react'
+import { Copy, MessageSquarePlus, Sparkles, Trash2 } from 'lucide-react'
 import { HIGHLIGHT_COLORS, type Annotation, type HighlightColor } from '../../../shared/ipc'
 import { HIGHLIGHT_HEX, type PendingSelection } from './types'
 import { cn } from '../lib/cn'
@@ -43,6 +43,7 @@ export function HighlightPopover({
   state,
   annotation,
   onCreate,
+  onAsk,
   onUpdate,
   onDelete,
   onClose
@@ -50,6 +51,8 @@ export function HighlightPopover({
   state: PopoverState
   annotation: Annotation | null
   onCreate: (color: HighlightColor, withNote: boolean) => void
+  /** Open "Ask AI" for the current selection (new selections only). */
+  onAsk?: () => void
   onUpdate: (patch: { note?: string | null; color?: HighlightColor }) => void
   onDelete: () => void
   onClose: () => void
@@ -113,6 +116,14 @@ export function HighlightPopover({
         >
           <MessageSquarePlus size={15} aria-hidden /> {annotation?.note ? 'Edit note' : 'Note'}
         </button>
+        {state.mode === 'new' && onAsk && (
+          <button
+            onClick={onAsk}
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-sm hover:bg-sunken"
+          >
+            <Sparkles size={15} className="text-accent" aria-hidden /> Ask AI
+          </button>
+        )}
         {state.mode === 'new' ? (
           <button
             aria-label="Copy"

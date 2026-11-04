@@ -70,6 +70,46 @@ const anchor = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('location') }).strict()
 ])
 
+const aiRequest = z
+  .object({
+    bookId: id,
+    action: z.enum([
+      'summarize',
+      'simplify',
+      'translate',
+      'rewrite',
+      'study-notes',
+      'quiz',
+      'custom'
+    ]),
+    options: z
+      .object({
+        length: z.enum(['brief', 'detailed']).optional(),
+        level: z.enum(['child', 'teen', 'plain']).optional(),
+        language: z.string().trim().min(1).max(60).optional(),
+        style: z.string().trim().max(300).optional(),
+        instruction: z.string().trim().max(4000).optional()
+      })
+      .strict(),
+    scope: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('book') }).strict(),
+      z
+        .object({
+          kind: z.literal('chapters'),
+          indexes: z.array(z.number().int().min(0)).min(1).max(5000)
+        })
+        .strict(),
+      z
+        .object({
+          kind: z.literal('text'),
+          text: z.string().min(1).max(60_000),
+          label: z.string().max(200).optional()
+        })
+        .strict()
+    ])
+  })
+  .strict()
+
 /** Runtime validation for every channel's arguments. Main rejects anything that doesn't match. */
 export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } = {
   'app:info': none,
@@ -100,7 +140,7 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
       language: z.enum(OCR_LANGUAGES.map((l) => l.code) as [OcrLanguage, ...OcrLanguage[]])
     })
     .strict(),
-  'reader:open': z.object({ id }).strict(),
+  'reader:open': z.object({ id, versionId: id.optional() }).strict(),
   'reader:saveProgress': z
     .object({ id, location: z.string().min(1).max(2000), progress: z.number().min(0).max(1) })
     .strict(),
@@ -121,8 +161,8 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
         .strict()
     })
     .strict(),
-  'reader:html': z.object({ id }).strict(),
-  'annotations:list': z.object({ bookId: id }).strict(),
+  'reader:html': z.object({ id, versionId: id.optional() }).strict(),
+  'annotations:list': z.object({ bookId: id, versionId: id.nullable().optional() }).strict(),
   'annotations:create': z
     .object({
       bookId: id,
@@ -133,7 +173,8 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
       chapter: z.string().max(500).nullable().optional(),
       text: z.string().max(20_000).nullable().optional(),
       note: z.string().max(20_000).nullable().optional(),
-      color: color.nullable().optional()
+      color: color.nullable().optional(),
+      versionId: id.nullable().optional()
     })
     .strict(),
   'annotations:update': z
@@ -166,6 +207,29 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
       format: z.enum(['epub', 'pdf', 'txt'])
     })
     .strict(),
+  'ai:chapters': z.object({ bookId: id }).strict(),
+  'ai:estimate': aiRequest,
+  'ai:start': aiRequest,
+  'ai:jobs': z.object({ bookId: id.optional() }).strict(),
+  'ai:part': z.object({ jobId: id, idx: z.number().int().min(0) }).strict(),
+  'ai:pause': z.object({ id }).strict(),
+  'ai:resume': z.object({ id }).strict(),
+  'ai:cancel': z.object({ id }).strict(),
+  'ai:deleteJob': z.object({ id }).strict(),
+  'ai:ask': z
+    .object({
+      requestId: id,
+      bookId: id,
+      text: z.string().trim().min(1).max(20_000),
+      action: z.enum(['explain', 'define', 'translate', 'simplify']),
+      context: z.string().max(20_000).optional()
+    })
+    .strict(),
+  'ai:askCancel': z.object({ requestId: id }).strict(),
+  'versions:list': z.object({ bookId: id }).strict(),
+  'versions:rename': z.object({ id, title: z.string().trim().min(1).max(200) }).strict(),
+  'versions:delete': z.object({ id }).strict(),
+  'versions:export': z.object({ id, format: z.enum(['pdf', 'docx', 'md']) }).strict(),
   'library:openFolder': none,
   'library:importDialog': z.object({ mode: z.enum(['files', 'folder']) }).strict(),
   'library:importPaths': z
