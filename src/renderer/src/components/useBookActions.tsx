@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
   BookOpen,
+  Download,
   CheckCircle2,
   Circle,
   CircleDot,
@@ -106,6 +107,17 @@ export function useBookActions(currentCollectionId?: string | null): {
     }
     list.push(
       { kind: 'separator' },
+      {
+        kind: 'item',
+        label: 'Export notes…',
+        icon: Download,
+        onSelect: () =>
+          call(
+            window.api.exports
+              .markdown(book.id)
+              .then((r) => r && toast.success(`Exported to ${r.path}`))
+          )
+      },
       {
         kind: 'item',
         label: 'Show in folder',

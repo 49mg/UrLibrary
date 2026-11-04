@@ -60,6 +60,22 @@ const api = {
       invoke('reader:savePrefs', { id, prefs }),
     html: (id: string) => invoke('reader:html', { id })
   },
+  annotations: {
+    list: (bookId: string) => invoke('annotations:list', { bookId }),
+    create: (a: InvokeArgs<'annotations:create'>) => invoke('annotations:create', a),
+    update: (id: string, patch: Omit<InvokeArgs<'annotations:update'>, 'id'>) =>
+      invoke('annotations:update', { id, ...patch }),
+    delete: (id: string) => invoke('annotations:delete', { id }),
+    search: (opts: InvokeArgs<'annotations:search'> = {}) => invoke('annotations:search', opts)
+  },
+  notebook: {
+    get: (bookId: string) => invoke('notebook:get', { bookId }),
+    save: (bookId: string, content: string) => invoke('notebook:save', { bookId, content })
+  },
+  exports: {
+    markdown: (bookId: string) => invoke('export:markdown', { bookId }),
+    annotatedPdf: (bookId: string) => invoke('export:annotatedPdf', { bookId })
+  },
   library: {
     openFolder: () => invoke('library:openFolder'),
     importDialog: (mode: 'files' | 'folder') => invoke('library:importDialog', { mode }),

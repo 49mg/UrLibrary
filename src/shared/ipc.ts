@@ -4,6 +4,8 @@
  * and both sides share these types so a channel can't drift out of sync.
  */
 
+import type { TextQuote } from './anchoring'
+
 export type ThemePreference = 'system' | 'light' | 'dark'
 export type ReaderTheme = 'light' | 'dark' | 'sepia'
 export type ReaderFont = 'serif' | 'sans'
@@ -111,6 +113,49 @@ export interface ReaderSession {
   prefs: ReaderPrefs
 }
 
+export type AnnotationType = 'highlight' | 'bookmark'
+export const HIGHLIGHT_COLORS = ['yellow', 'green', 'blue', 'pink', 'purple'] as const
+export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number]
+
+/** Where an annotation sits, in the terms of the format it was made in. */
+export type Anchor =
+  /** rects: [x, y, width, height] as fractions (0..1) of the page, origin top-left */
+  | { kind: 'pdf'; page: number; rects: Array<[number, number, number, number]> }
+  | { kind: 'epub'; cfi: string }
+  | ({ kind: 'text' } & TextQuote)
+  /** Bookmarks: just a position */
+  | { kind: 'location' }
+
+export interface Annotation {
+  id: string
+  bookId: string
+  type: AnnotationType
+  anchor: Anchor
+  /** Reader location to jump to (same format as reading positions). */
+  location: string
+  chapter: string | null
+  /** 0..1 position through the book, for ordering. */
+  sortKey: number
+  /** The highlighted text */
+  text: string | null
+  note: string | null
+  color: HighlightColor | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type NewAnnotation = Pick<
+  Annotation,
+  'bookId' | 'type' | 'anchor' | 'location' | 'sortKey'
+> &
+  Partial<Pick<Annotation, 'chapter' | 'text' | 'note' | 'color'>>
+
+export interface AnnotationWithBook extends Annotation {
+  bookTitle: string
+  bookAuthor: string | null
+  bookFormat: BookFormat
+}
+
 export interface ImportResult {
   imported: Array<{ id: string; title: string }>
   duplicates: Array<{ id: string; title: string; path: string }>
@@ -192,6 +237,26 @@ export interface IpcInvokeMap {
   'reader:savePrefs': { args: { id: string; prefs: Partial<ReaderPrefs> }; result: ReaderPrefs }
   /** DOCX, TXT and Markdown rendered to HTML (unsanitized; the renderer sanitizes it). */
   'reader:html': { args: { id: string }; result: { html: string } }
+  'annotations:list': { args: { bookId: string }; result: Annotation[] }
+  'annotations:create': { args: NewAnnotation; result: Annotation }
+  'annotations:update': {
+    args: { id: string; note?: string | null; color?: HighlightColor }
+    result: Annotation
+  }
+  'annotations:delete': { args: { id: string }; result: void }
+  /** All notes across books (Notes page), newest first. */
+  'annotations:search': {
+    args: { query?: string; color?: HighlightColor; type?: AnnotationType; limit?: number }
+    result: AnnotationWithBook[]
+  }
+  'notebook:get': {
+    args: { bookId: string }
+    result: { content: string; updatedAt: string | null }
+  }
+  'notebook:save': { args: { bookId: string; content: string }; result: { updatedAt: string } }
+  /** Both show a save dialog; null when the user cancels. */
+  'export:markdown': { args: { bookId: string }; result: { path: string } | null }
+  'export:annotatedPdf': { args: { bookId: string }; result: { path: string } | null }
   'library:openFolder': { args: void; result: void }
   'library:importDialog': { args: { mode: 'files' | 'folder' }; result: ImportResult | null }
   'library:importPaths': { args: { paths: string[] }; result: ImportResult }
@@ -211,6 +276,7 @@ export interface IpcEventMap {
   'settings:changed': AppSettings
   /** Books, collections or extracted text changed; the UI should refetch. */
   'library:changed': { bookId?: string }
+  'annotations:changed': { bookId: string }
 }
 
 export type InvokeChannel = keyof IpcInvokeMap
@@ -221,7 +287,8 @@ export type EventChannel = keyof IpcEventMap
 export const EVENT_CHANNELS: readonly EventChannel[] = [
   'jobs:update',
   'settings:changed',
-  'library:changed'
+  'library:changed',
+  'annotations:changed'
 ]
 
 /** Every invoke goes over the wire wrapped in this envelope so errors keep a code and message. */

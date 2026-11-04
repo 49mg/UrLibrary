@@ -101,5 +101,17 @@ export const migrations: string[] = [
   `,
   /* 3: per-book reader preferences (theme, font size, zoom...) */ `
   ALTER TABLE books ADD COLUMN reader_prefs TEXT;
+  `,
+  /* 4: annotations — jump location, chapter, ordering; per-book notebook */ `
+  ALTER TABLE annotations ADD COLUMN location TEXT NOT NULL DEFAULT '';
+  ALTER TABLE annotations ADD COLUMN chapter TEXT;
+  ALTER TABLE annotations ADD COLUMN sort_key REAL NOT NULL DEFAULT 0;
+  CREATE INDEX annotations_book_sort ON annotations(book_id, sort_key);
+
+  CREATE TABLE notebooks (
+    book_id    TEXT PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
+    content    TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  );
   `
 ]

@@ -6,6 +6,7 @@ import {
   Folder,
   Library,
   MoreHorizontal,
+  NotebookPen,
   Pencil,
   Plus,
   Settings,
@@ -26,6 +27,7 @@ const NAV: Array<{ to: string; label: string; icon: LucideIcon }> = [
   { to: '/library', label: 'Library', icon: Library },
   { to: '/discover', label: 'Discover', icon: Compass },
   { to: '/reader', label: 'Reader', icon: BookOpen },
+  { to: '/notes', label: 'Notes', icon: NotebookPen },
   { to: '/ai', label: 'AI Studio', icon: Sparkles }
 ]
 

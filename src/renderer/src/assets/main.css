@@ -161,3 +161,54 @@ body {
 .sl-pdf-dark .pdfViewer .canvasWrapper {
   filter: invert(0.88) hue-rotate(180deg);
 }
+
+/* PDF highlights: translucent bars between the page image and the (invisible) text layer. */
+.sl-annot-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.sl-annot {
+  position: absolute;
+  opacity: 0.42;
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+}
+.sl-pdf-dark .sl-annot {
+  mix-blend-mode: normal;
+  opacity: 0.35;
+}
+.sl-annot-noted {
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.35);
+}
+
+/* HTML reader highlights (CSS Custom Highlight API). */
+::highlight(sl-hl-yellow) {
+  background-color: rgb(246 209 85 / 0.45);
+}
+::highlight(sl-hl-green) {
+  background-color: rgb(143 209 111 / 0.45);
+}
+::highlight(sl-hl-blue) {
+  background-color: rgb(127 184 245 / 0.45);
+}
+::highlight(sl-hl-pink) {
+  background-color: rgb(245 154 184 / 0.45);
+}
+::highlight(sl-hl-purple) {
+  background-color: rgb(185 154 245 / 0.45);
+}
+::highlight(sl-hl-noted) {
+  text-decoration: underline dotted 2px;
+  text-underline-offset: 3px;
+}
+.sl-notebook :where(p) {
+  margin: 0 0 0.6em;
+}
+.sl-notebook p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--c-muted);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}

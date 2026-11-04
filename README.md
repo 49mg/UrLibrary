@@ -45,6 +45,12 @@ heading), `section:2` (TXT), `scroll:0.42` (saved scroll position in HTML views)
 content is sandboxed: EPUB pages render in script-less iframes, DOCX/MD/TXT HTML is sanitized
 with DOMPurify.
 
+**Highlights & notes:** stored in SQLite, never written into the original file. Each one keeps a
+format-specific anchor (PDF page + rectangles as page fractions, EPUB CFI, or a text quote with
+surrounding context for DOCX/MD/TXT that is re-found if the text shifts — see
+`src/shared/anchoring.ts`). Notes export to Markdown, and PDF highlights export as standard PDF
+Highlight annotations in a copy of the file.
+
 **Data location:** `<userData>/library.db` (SQLite) and `<userData>/library/<bookId>/…` for files.
 Book files reach the UI through the `book://<bookId>/<path>` protocol, which refuses paths outside
 the book's folder.

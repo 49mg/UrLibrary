@@ -1,4 +1,10 @@
-import type { ReaderPrefs, ReaderSession } from '../../../shared/ipc'
+import type {
+  Anchor,
+  Annotation,
+  HighlightColor,
+  ReaderPrefs,
+  ReaderSession
+} from '../../../shared/ipc'
 
 export interface TocItem {
   label: string
@@ -34,6 +40,21 @@ export interface ReaderHandle {
   clearSearch: () => void
   /** PDF only: the actual zoom factor (resolves 'page-width' etc.). */
   getScale?: () => number
+  /** Whether a saved location is on the page/screen the reader currently shows (for bookmarks). */
+  isAt: (location: string) => boolean
+}
+
+/** Text the user just selected, ready to become a highlight. */
+export interface PendingSelection {
+  anchor: Anchor
+  location: string
+  chapter: string | null
+  sortKey: number
+  text: string
+  /** Viewport rect of the selection, to place the popover. */
+  rect: { left: number; top: number; width: number; height: number }
+  /** Clears the native selection once handled. */
+  clear: () => void
 }
 
 export interface FormatReaderProps {
@@ -47,6 +68,11 @@ export interface FormatReaderProps {
   /** Lets readers that render inside iframes (EPUB) forward keyboard shortcuts. */
   onKey: (e: KeyboardEvent) => void
   handleRef: React.RefObject<ReaderHandle | null>
+  /** Highlights (and bookmarks, which readers ignore) to draw. */
+  annotations: Annotation[]
+  /** null = the selection was cleared or the user clicked empty space. */
+  onSelection: (sel: PendingSelection | null) => void
+  onAnnotationClick: (id: string, rect: PendingSelection['rect']) => void
 }
 
 /** Page colors for the reading surface; independent of the app theme. */
@@ -61,4 +87,13 @@ export const FONT_STACKS: Record<ReaderPrefs['fontFamily'], string> = {
   serif:
     "'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, 'Noto Serif', serif",
   sans: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Noto Sans', 'Noto Sans Arabic', sans-serif"
+}
+
+/** On-screen colors for highlights (translucent fills over the text). */
+export const HIGHLIGHT_HEX: Record<HighlightColor, string> = {
+  yellow: '#f6d155',
+  green: '#8fd16f',
+  blue: '#7fb8f5',
+  pink: '#f59ab8',
+  purple: '#b99af5'
 }

@@ -1,4 +1,15 @@
-import { app, shell, BrowserWindow, dialog, nativeTheme, type OpenDialogOptions } from 'electron'
+import {
+  app,
+  shell,
+  BrowserWindow,
+  dialog,
+  nativeTheme,
+  type OpenDialogOptions,
+  type SaveDialogOptions
+} from 'electron'
+import { readFile, writeFile } from 'node:fs/promises'
+import { annotationsToMarkdown } from './export/markdown'
+import { annotatePdf } from './export/pdf'
 import { join } from 'node:path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -57,6 +68,26 @@ function createWindow(ctx: AppContext): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
   return win
+}
+
+async function saveDialog(opts: SaveDialogOptions): Promise<string | null> {
+  const res = mainWindow
+    ? await dialog.showSaveDialog(mainWindow, opts)
+    : await dialog.showSaveDialog(opts)
+  return res.canceled || !res.filePath ? null : res.filePath
+}
+
+/** A title usable as a file name on every OS. */
+function safeFileName(title: string): string {
+  return (
+    title
+      // Characters invalid in file names on Windows/macOS/Linux, including control characters.
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120) || 'Book'
+  )
 }
 
 export function sendEvent<E extends EventChannel>(event: E, payload: IpcEventMap[E]): void {
@@ -182,6 +213,63 @@ app.whenReady().then(() => {
       } catch (err) {
         throw new AppError('RENDER_FAILED', `Couldn’t open this file: ${(err as Error).message}`)
       }
+    },
+    'annotations:list': ({ bookId }) => ctx.annotations.list(bookId),
+    'annotations:create': (a) => {
+      requireBook(a.bookId)
+      const created = ctx.annotations.create(a)
+      sendEvent('annotations:changed', { bookId: a.bookId })
+      return created
+    },
+    'annotations:update': ({ id, ...patch }) => {
+      const updated = ctx.annotations.update(id, patch)
+      if (!updated) throw new AppError('NOT_FOUND', 'That note was already deleted.')
+      sendEvent('annotations:changed', { bookId: updated.bookId })
+      return updated
+    },
+    'annotations:delete': ({ id }) => {
+      const bookId = ctx.annotations.delete(id)
+      if (bookId) sendEvent('annotations:changed', { bookId })
+    },
+    'annotations:search': (opts) => ctx.annotations.search(opts),
+    'notebook:get': ({ bookId }) => ctx.notebooks.get(bookId),
+    'notebook:save': ({ bookId, content }) => {
+      requireBook(bookId)
+      return ctx.notebooks.save(bookId, content)
+    },
+    'export:markdown': async ({ bookId }) => {
+      const book = requireBook(bookId)
+      const res = await saveDialog({
+        title: 'Export notes',
+        defaultPath: `${safeFileName(book.title)} — notes.md`,
+        filters: [{ name: 'Markdown', extensions: ['md'] }]
+      })
+      if (!res) return null
+      const md = annotationsToMarkdown(
+        book,
+        ctx.annotations.list(bookId),
+        ctx.notebooks.get(bookId).content
+      )
+      await writeFile(res, md, 'utf8')
+      return { path: res }
+    },
+    'export:annotatedPdf': async ({ bookId }) => {
+      const book = requireBook(bookId)
+      const info = ctx.books.getFileInfo(bookId)
+      if (!info || info.format !== 'pdf')
+        throw new AppError('UNSUPPORTED', 'Only PDF books can be exported with highlights.')
+      const res = await saveDialog({
+        title: 'Export PDF with highlights',
+        defaultPath: `${safeFileName(book.title)} (annotated).pdf`,
+        filters: [{ name: 'PDF', extensions: ['pdf'] }]
+      })
+      if (!res) return null
+      const original = await readFile(ctx.files.resolveInBook(bookId, info.filePath))
+      await writeFile(
+        res,
+        await annotatePdf(new Uint8Array(original), ctx.annotations.list(bookId))
+      )
+      return { path: res }
     },
     'library:openFolder': async () => {
       const err = await shell.openPath(ctx.files.root)

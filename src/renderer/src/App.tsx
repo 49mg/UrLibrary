@@ -8,6 +8,7 @@ import { ReaderPage } from './pages/ReaderPage'
 import { DropZone } from './components/DropZone'
 import { subscribeLibrary, useLibrary } from './stores/library'
 import { SettingsPage } from './pages/SettingsPage'
+import { NotesPage } from './pages/NotesPage'
 import { applyTheme, subscribeSettings, useSettings } from './stores/settings'
 import { subscribeJobs } from './stores/jobs'
 import { toast } from './stores/toasts'
@@ -46,6 +47,7 @@ function App(): React.JSX.Element {
             <Route path="/discover" element={<DiscoverPage />} />
             <Route path="/reader" element={<ReaderPage />} />
             <Route path="/reader/:bookId" element={<ReaderPage />} />
+            <Route path="/notes" element={<NotesPage />} />
             <Route path="/ai" element={<AiStudioPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Routes>

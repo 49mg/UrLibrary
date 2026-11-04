@@ -5,6 +5,7 @@ import { SettingsRepo } from './db/settingsRepo'
 import { BooksRepo } from './db/booksRepo'
 import { CollectionsRepo } from './db/collectionsRepo'
 import { SearchRepo } from './db/searchRepo'
+import { AnnotationsRepo, NotebooksRepo } from './db/annotationsRepo'
 import { FileStore } from './services/fileStore'
 import { SecretStore } from './services/secrets'
 import { JobQueue } from './services/jobQueue'
@@ -21,6 +22,8 @@ export interface AppContext {
   books: BooksRepo
   collections: CollectionsRepo
   search: SearchRepo
+  annotations: AnnotationsRepo
+  notebooks: NotebooksRepo
   secrets: SecretStore
   jobs: JobQueue
   importer: ImportService
@@ -52,6 +55,8 @@ export function createContext(emit: Emit): AppContext {
     books,
     collections: new CollectionsRepo(db),
     search: new SearchRepo(db),
+    annotations: new AnnotationsRepo(db),
+    notebooks: new NotebooksRepo(db),
     secrets: new SecretStore(join(userData, 'secrets.json'), {
       isAvailable: () => safeStorage.isEncryptionAvailable(),
       isStrong: () =>

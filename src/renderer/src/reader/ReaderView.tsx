@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   ArrowLeft,
+  Bookmark,
+  BookmarkCheck,
+  NotebookPen,
   ChevronLeft,
   ChevronRight,
   GalleryVerticalEnd,
@@ -16,7 +19,12 @@ import {
   X
 } from 'lucide-react'
 import type { ReaderPrefs, ReaderSession } from '../../../shared/ipc'
-import type { ReaderHandle, ReaderPosition, SearchMatch, TocItem } from './types'
+import type { HighlightColor } from '../../../shared/ipc'
+import type { PendingSelection, ReaderHandle, ReaderPosition, SearchMatch, TocItem } from './types'
+import { HighlightPopover, type PopoverState } from './HighlightPopover'
+import { NotesPanel } from './NotesPanel'
+import { useAnnotations } from './useAnnotations'
+import { useLatest } from '../lib/useLatest'
 import { PAGE_COLORS } from './types'
 import { PdfReader } from './PdfReader'
 import { EpubReader } from './EpubReader'
@@ -365,7 +373,75 @@ export function ReaderView({
   const [toc, setToc] = useState<TocItem[] | null>(null)
   const [position, setPosition] = useState<ReaderPosition | null>(null)
   const [panel, setPanel] = useState<'toc' | 'pages' | null>(null)
-  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchOpen, setSearchOpenRaw] = useState(false)
+  const [notesOpen, setNotesOpenRaw] = useState(false)
+  // Search and notes share the right-hand side; opening one closes the other.
+  const setSearchOpen = useCallback((v: boolean) => {
+    setSearchOpenRaw(v)
+    if (v) setNotesOpenRaw(false)
+  }, [])
+  const setNotesOpen = useCallback((v: boolean) => {
+    setNotesOpenRaw(v)
+    if (v) setSearchOpenRaw(false)
+  }, [])
+
+  // ---- highlights, notes, bookmarks ----
+  const { annotations, create, update, remove } = useAnnotations(book.id)
+  const annRef = useLatest(annotations)
+  const [pop, setPop] = useState<PopoverState | null>(null)
+  const [bookmarkId, setBookmarkId] = useState<string | null>(null)
+  const findBookmark = useCallback(
+    () =>
+      annRef.current.find((a) => a.type === 'bookmark' && handle.current?.isAt(a.location))?.id ??
+      null,
+    [annRef]
+  )
+  const onSelection = useCallback((sel: PendingSelection | null) => {
+    setPop(sel ? { mode: 'new', sel } : null)
+  }, [])
+  const onAnnotationClick = useCallback((id: string, rect: PendingSelection['rect']) => {
+    setPop({ mode: 'edit', id, rect })
+  }, [])
+  const createHighlight = async (color: HighlightColor, withNote: boolean): Promise<void> => {
+    if (pop?.mode !== 'new') return
+    const { sel } = pop
+    const created = await create({
+      type: 'highlight',
+      anchor: sel.anchor,
+      location: sel.location,
+      chapter: sel.chapter,
+      sortKey: sel.sortKey,
+      text: sel.text,
+      color
+    })
+    sel.clear()
+    setPop(
+      created && withNote ? { mode: 'edit', id: created.id, rect: sel.rect, editing: true } : null
+    )
+  }
+  const toggleBookmark = async (): Promise<void> => {
+    if (bookmarkId) {
+      await remove(bookmarkId)
+      setBookmarkId(null)
+      return
+    }
+    if (!position) return
+    const created = await create({
+      type: 'bookmark',
+      anchor: { kind: 'location' },
+      location: position.location,
+      // "Page 3 of 10" isn't a chapter; the notes list shows the page from the location instead.
+      chapter:
+        /^Page \d+ of \d+$/.test(position.label) || /^\d+%$/.test(position.label)
+          ? null
+          : position.label || null,
+      sortKey: position.progress
+    })
+    if (created) {
+      setBookmarkId(created.id)
+      toast.success('Bookmarked.')
+    }
+  }
   const [displayOpen, setDisplayOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -382,11 +458,12 @@ export function ReaderView({
   const onPosition = useCallback(
     (p: ReaderPosition) => {
       setPosition(p)
+      setBookmarkId(findBookmark())
       pending.current = p
       if (timer.current) clearTimeout(timer.current)
       timer.current = setTimeout(flush, SAVE_DELAY)
     },
-    [flush]
+    [flush, findBookmark]
   )
   useEffect(() => {
     window.addEventListener('beforeunload', flush)
@@ -417,7 +494,16 @@ export function ReaderView({
   const onKey = useCallback(
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return
+      // Typing in a field or the notebook editor must not turn pages.
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return
+      }
       const mod = e.ctrlKey || e.metaKey
       if (mod && e.key.toLowerCase() === 'f') {
         e.preventDefault()
@@ -437,7 +523,7 @@ export function ReaderView({
         setFocusMode(!focusMode)
       }
     },
-    [book.format, focusMode, setFocusMode]
+    [book.format, focusMode, setFocusMode, setSearchOpen]
   )
   useEffect(() => {
     window.addEventListener('keydown', onKey)
@@ -480,7 +566,10 @@ export function ReaderView({
     onPosition,
     onError: setError,
     onKey,
-    handleRef: handle
+    handleRef: handle,
+    annotations,
+    onSelection,
+    onAnnotationClick
   }
 
   return (
@@ -544,6 +633,20 @@ export function ReaderView({
             onClick={() => setSearchOpen(!searchOpen)}
           >
             <Search size={18} />
+          </IconButton>
+          <IconButton
+            label={bookmarkId ? 'Remove bookmark' : 'Bookmark this page'}
+            active={!!bookmarkId}
+            onClick={() => void toggleBookmark()}
+          >
+            {bookmarkId ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+          </IconButton>
+          <IconButton
+            label="Notes and highlights"
+            active={notesOpen}
+            onClick={() => setNotesOpen(!notesOpen)}
+          >
+            <NotebookPen size={18} />
           </IconButton>
           <div className="relative" data-display-toggle>
             <IconButton
@@ -640,6 +743,37 @@ export function ReaderView({
 
         {searchOpen && !focusMode && (
           <SearchPanel handle={handle} onClose={() => setSearchOpen(false)} />
+        )}
+        {notesOpen && !focusMode && (
+          <NotesPanel
+            bookId={book.id}
+            format={book.format}
+            annotations={annotations}
+            onOpen={(a) => handle.current?.goTo(a.location)}
+            onUpdate={(id, patch) => void update(id, patch)}
+            onDelete={(id) => void remove(id)}
+            onClose={() => setNotesOpen(false)}
+          />
+        )}
+        {pop && (
+          <HighlightPopover
+            key={
+              pop.mode === 'new'
+                ? `new-${pop.sel.location}`
+                : `edit-${pop.id}-${pop.editing ? 1 : 0}`
+            }
+            state={pop}
+            annotation={
+              pop.mode === 'edit' ? (annotations.find((a) => a.id === pop.id) ?? null) : null
+            }
+            onCreate={(c, n) => void createHighlight(c, n)}
+            onUpdate={(patch) => pop.mode === 'edit' && void update(pop.id, patch)}
+            onDelete={() => {
+              if (pop.mode === 'edit') void remove(pop.id)
+              setPop(null)
+            }}
+            onClose={() => setPop(null)}
+          />
         )}
       </div>
 
