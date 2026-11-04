@@ -1,0 +1,76 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Design tokens. Components use the semantic names (bg-surface, text-muted …), never raw colors. */
+:root {
+  --c-bg: #f7f4ee;
+  --c-surface: #fffdf9;
+  --c-sunken: #efeae1;
+  --c-border: #e2dccf;
+  --c-text: #23201a;
+  --c-muted: #6f675a;
+  --c-accent: #9a4a24;
+  --c-accent-soft: #f3e3d8;
+  --c-accent-text: #fffaf5;
+  --c-danger: #b42318;
+  --c-success: #2f6b3a;
+  color-scheme: light;
+}
+
+.dark {
+  --c-bg: #16140f;
+  --c-surface: #1f1c16;
+  --c-sunken: #121009;
+  --c-border: #36312a;
+  --c-text: #ece6da;
+  --c-muted: #a39a8a;
+  --c-accent: #e08a5c;
+  --c-accent-soft: #3a2a20;
+  --c-accent-text: #1a120c;
+  --c-danger: #f07a6c;
+  --c-success: #7cc48a;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-sunken: var(--c-sunken);
+  --color-border: var(--c-border);
+  --color-text: var(--c-text);
+  --color-muted: var(--c-muted);
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-text: var(--c-accent-text);
+  --color-danger: var(--c-danger);
+  --color-success: var(--c-success);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'Noto Sans', 'Noto Sans Arabic', sans-serif;
+  --font-serif:
+    'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, 'Noto Serif', serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--c-accent-soft);
+}
