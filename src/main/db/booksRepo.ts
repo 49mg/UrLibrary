@@ -16,6 +16,7 @@ interface BookRow {
   author: string | null
   format: BookFormat
   source: string
+  source_id: string | null
   language: string | null
   cover_path: string | null
   added_at: string
@@ -45,6 +46,7 @@ export interface NewBook {
   hash: string
   originalName: string
   sizeBytes: number
+  author?: string | null
   source?: string
   sourceId?: string | null
   license?: string | null
@@ -90,6 +92,7 @@ function toSummary(r: BookRow): BookSummary {
     author: r.author,
     format: r.format,
     source: r.source,
+    sourceId: r.source_id,
     language: r.language,
     coverUrl: r.cover_path ? coverUrl(r.id, r.cover_path) : null,
     addedAt: r.added_at,
@@ -133,6 +136,14 @@ export class BooksRepo {
     return r ? { filePath: r.file_path, format: r.format, title: r.title } : null
   }
 
+  /** A book downloaded earlier from the same catalog entry. */
+  findBySource(source: string, sourceId: string): { id: string; title: string } | null {
+    const r = this.db
+      .prepare('SELECT id, title FROM books WHERE source = ? AND source_id = ? LIMIT 1')
+      .get(source, sourceId) as { id: string; title: string } | undefined
+    return r ?? null
+  }
+
   findByHash(hash: string): { id: string; title: string } | null {
     const r = this.db.prepare('SELECT id, title FROM books WHERE hash = ?').get(hash) as
       { id: string; title: string } | undefined
@@ -142,12 +153,13 @@ export class BooksRepo {
   insert(b: NewBook): void {
     this.db
       .prepare(
-        `INSERT INTO books (id, title, format, file_path, hash, original_name, size_bytes, source, source_id, license)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO books (id, title, author, format, file_path, hash, original_name, size_bytes, source, source_id, license)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         b.id,
         b.title,
+        b.author ?? null,
         b.format,
         b.filePath,
         b.hash,
@@ -194,10 +206,20 @@ export class BooksRepo {
     const db = this.db
     db.exec('BEGIN')
     try {
-      const row = db.prepare('SELECT meta_edited FROM books WHERE id = ?').get(id) as
-        { meta_edited: number } | undefined
+      const row = db.prepare('SELECT meta_edited, source FROM books WHERE id = ?').get(id) as
+        { meta_edited: number; source: string } | undefined
       if (!row) throw new Error('Book was deleted during import')
-      if (!row.meta_edited) {
+      if (row.source !== 'local') {
+        // Downloaded books already have catalog metadata, usually better than what's embedded in
+        // the file (scanned PDFs often have none or junk); the file only fills the gaps.
+        db.prepare(
+          `UPDATE books SET
+             author = COALESCE(author, NULLIF(?, '')),
+             language = COALESCE(language, NULLIF(?, '')),
+             description = COALESCE(description, NULLIF(?, ''))
+           WHERE id = ?`
+        ).run(meta.author ?? null, meta.language ?? null, meta.description ?? null, id)
+      } else if (!row.meta_edited) {
         db.prepare(
           `UPDATE books SET
              title = COALESCE(NULLIF(?, ''), title),

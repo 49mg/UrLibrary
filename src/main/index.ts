@@ -271,6 +271,10 @@ app.whenReady().then(() => {
       )
       return { path: res }
     },
+    'discover:providers': () => ctx.discover.info(),
+    'discover:search': ({ provider, query }) => ctx.discover.search(provider, query),
+    'discover:details': ({ provider, id }) => ctx.discover.details(provider, id),
+    'discover:download': ({ provider, id, format }) => ctx.discover.download(provider, id, format),
     'library:openFolder': async () => {
       const err = await shell.openPath(ctx.files.root)
       if (err) throw new AppError('OPEN_FAILED', err)
@@ -324,8 +328,11 @@ app.whenReady().then(() => {
       ctx.collections.removeBook(collectionId, bookId)
       emitLibraryChanged(bookId)
     },
-    'jobs:list': () => ctx.jobs.list(),
-    'jobs:cancel': ({ id }) => ctx.jobs.cancel(id)
+    'jobs:list': () => [...ctx.jobs.list(), ...ctx.downloads.list()],
+    'jobs:cancel': ({ id }) => {
+      ctx.jobs.cancel(id)
+      ctx.downloads.cancel(id)
+    }
   })
 
   mainWindow = createWindow(ctx)

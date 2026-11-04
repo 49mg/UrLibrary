@@ -36,6 +36,17 @@ export async function sha256File(path: string): Promise<string> {
 /** Tasks that produce extracted text (as opposed to e.g. HTML rendering). */
 export type ExtractTask = Extract<WorkerTask, { type: 'extract' | 'ocr' }>
 
+/** Metadata from a catalog (Discover) for a downloaded file. */
+export interface CatalogMeta {
+  format: BookFormat
+  title: string
+  author: string | null
+  source: string
+  sourceId: string
+  license: string
+  originalName: string
+}
+
 export type Extractor = (
   task: ExtractTask,
   onProgress: (fraction: number) => void,
@@ -106,11 +117,25 @@ export class ImportService {
     return result
   }
 
+  /**
+   * Adds a file downloaded from a catalog, keeping the catalog's title, author, source and license.
+   * The downloaded temp file is not deleted here (the caller owns it).
+   */
+  async importDownloaded(
+    path: string,
+    meta: CatalogMeta
+  ): Promise<{ duplicate: boolean; book: { id: string; title: string } }> {
+    const r = await this.importOne(path, new Map(), meta)
+    if (!r.duplicate) this.d.onChanged(r.book.id)
+    return r
+  }
+
   private async importOne(
     path: string,
-    seen: Map<string, { id: string; title: string }>
+    seen: Map<string, { id: string; title: string }>,
+    catalog?: CatalogMeta
   ): Promise<{ duplicate: boolean; book: { id: string; title: string } }> {
-    const format = formatForPath(path)
+    const format = catalog?.format ?? formatForPath(path)
     if (!format) throw new Error('Unsupported file type (use PDF, EPUB, DOCX, TXT or Markdown)')
     const s = await stat(path)
     if (!s.isFile()) throw new Error('Not a regular file')
@@ -126,15 +151,19 @@ export class ImportService {
     const fileName = `original.${format === 'md' ? 'md' : format}`
     try {
       await copyFile(path, join(dir, fileName))
-      const title = titleFromFileName(basename(path))
+      const title = catalog?.title || titleFromFileName(basename(path))
       this.d.books.insert({
         id,
         title,
         format,
         filePath: fileName,
         hash,
-        originalName: basename(path),
-        sizeBytes: s.size
+        originalName: catalog?.originalName ?? basename(path),
+        sizeBytes: s.size,
+        author: catalog?.author ?? null,
+        source: catalog?.source,
+        sourceId: catalog?.sourceId ?? null,
+        license: catalog?.license ?? null
       })
       seen.set(hash, { id, title })
       this.queueExtraction(id)

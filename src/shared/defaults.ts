@@ -11,6 +11,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ai: {
     effort: 'medium',
     targetLanguage: 'English'
+  },
+  discover: {
+    providers: {
+      gutenberg: true,
+      standardebooks: true,
+      openlibrary: true,
+      archive: true,
+      arxiv: false
+    }
   }
 }
 

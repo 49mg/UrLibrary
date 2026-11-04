@@ -8,6 +8,7 @@ import {
 } from '../../shared/ipc'
 
 const none = z.undefined()
+const PROVIDER_IDS = ['gutenberg', 'standardebooks', 'openlibrary', 'archive', 'arxiv'] as const
 
 const settingsPatch = z
   .object({
@@ -25,6 +26,12 @@ const settingsPatch = z
       .object({
         effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).optional(),
         targetLanguage: z.string().trim().min(1).max(60).optional()
+      })
+      .strict()
+      .optional(),
+    discover: z
+      .object({
+        providers: z.partialRecord(z.enum(PROVIDER_IDS), z.boolean()).optional()
       })
       .strict()
       .optional()
@@ -145,6 +152,20 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
   'notebook:save': z.object({ bookId: id, content: z.string().max(2_000_000) }).strict(),
   'export:markdown': z.object({ bookId: id }).strict(),
   'export:annotatedPdf': z.object({ bookId: id }).strict(),
+  'discover:providers': none,
+  'discover:search': z
+    .object({ provider: z.enum(PROVIDER_IDS), query: z.string().max(300) })
+    .strict(),
+  'discover:details': z
+    .object({ provider: z.enum(PROVIDER_IDS), id: z.string().min(1).max(200) })
+    .strict(),
+  'discover:download': z
+    .object({
+      provider: z.enum(PROVIDER_IDS),
+      id: z.string().min(1).max(200),
+      format: z.enum(['epub', 'pdf', 'txt'])
+    })
+    .strict(),
   'library:openFolder': none,
   'library:importDialog': z.object({ mode: z.enum(['files', 'folder']) }).strict(),
   'library:importPaths': z

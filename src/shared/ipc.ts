@@ -11,6 +11,8 @@ export type ReaderTheme = 'light' | 'dark' | 'sepia'
 export type ReaderFont = 'serif' | 'sans'
 export type AiEffort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
+export type ProviderId = 'gutenberg' | 'standardebooks' | 'openlibrary' | 'archive' | 'arxiv'
+
 export interface AppSettings {
   theme: ThemePreference
   reader: {
@@ -22,6 +24,9 @@ export interface AppSettings {
   ai: {
     effort: AiEffort
     targetLanguage: string
+  }
+  discover: {
+    providers: Record<ProviderId, boolean>
   }
 }
 
@@ -59,7 +64,9 @@ export interface BookSummary {
   title: string
   author: string | null
   format: BookFormat
+  /** 'local' for imported files, otherwise the catalog it was downloaded from */
   source: string
+  sourceId: string | null
   language: string | null
   coverUrl: string | null
   addedAt: string
@@ -111,6 +118,45 @@ export interface ReaderSession {
   /** Last saved position, e.g. `page:12`, `cfi:epubcfi(...)`, `scroll:0.42` */
   location: string | null
   prefs: ReaderPrefs
+}
+
+/** A downloadable file offered by a catalog. URLs stay in the main process; the UI picks by format. */
+export interface CatalogFormat {
+  format: Extract<BookFormat, 'epub' | 'pdf' | 'txt'>
+  label: string
+  sizeBytes?: number | null
+}
+
+export interface CatalogResult {
+  /** `${provider}:${id}` */
+  key: string
+  provider: ProviderId
+  /** Provider's own id (Gutenberg number, archive.org identifier, OL work key, arXiv id, SE slug) */
+  id: string
+  title: string
+  authors: string[]
+  year: number | null
+  language: string | null
+  coverUrl: string | null
+  description: string | null
+  subjects: string[]
+  /** Empty when files must be looked up first (see discover:details). */
+  formats: CatalogFormat[]
+  /** Why this is free to download, e.g. "Public domain in the USA". */
+  license: string
+  /** The book's page on the provider's website. */
+  pageUrl: string
+  /** Set when this exact item is already in the library. */
+  inLibraryBookId: string | null
+}
+
+export interface ProviderInfo {
+  id: ProviderId
+  name: string
+  description: string
+  /** false = browse only (e.g. Standard Ebooks' public feed has no search) */
+  searchable: boolean
+  enabled: boolean
 }
 
 export type AnnotationType = 'highlight' | 'bookmark'
@@ -257,6 +303,20 @@ export interface IpcInvokeMap {
   /** Both show a save dialog; null when the user cancels. */
   'export:markdown': { args: { bookId: string }; result: { path: string } | null }
   'export:annotatedPdf': { args: { bookId: string }; result: { path: string } | null }
+  'discover:providers': { args: void; result: ProviderInfo[] }
+  /** One provider at a time, so the UI can show results as each source answers. */
+  'discover:search': {
+    args: { provider: ProviderId; query: string }
+    result: CatalogResult[]
+  }
+  /** Full description, subjects and the actual downloadable files. */
+  'discover:details': { args: { provider: ProviderId; id: string }; result: CatalogResult }
+  /** Queues a download; the book appears in the library when it finishes. Returns the job id. */
+  'discover:download': {
+    args: { provider: ProviderId; id: string; format: CatalogFormat['format'] }
+    /** existingBookId is set (and no job started) when this item is already in the library. */
+    result: { jobId: string | null; existingBookId: string | null }
+  }
   'library:openFolder': { args: void; result: void }
   'library:importDialog': { args: { mode: 'files' | 'folder' }; result: ImportResult | null }
   'library:importPaths': { args: { paths: string[] }; result: ImportResult }

@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron'
 import {
   EVENT_CHANNELS,
+  type CatalogFormat,
+  type ProviderId,
   type EventChannel,
   type InvokeArgs,
   type InvokeChannel,
@@ -75,6 +77,13 @@ const api = {
   exports: {
     markdown: (bookId: string) => invoke('export:markdown', { bookId }),
     annotatedPdf: (bookId: string) => invoke('export:annotatedPdf', { bookId })
+  },
+  discover: {
+    providers: () => invoke('discover:providers'),
+    search: (provider: ProviderId, query: string) => invoke('discover:search', { provider, query }),
+    details: (provider: ProviderId, id: string) => invoke('discover:details', { provider, id }),
+    download: (provider: ProviderId, id: string, format: CatalogFormat['format']) =>
+      invoke('discover:download', { provider, id, format })
   },
   library: {
     openFolder: () => invoke('library:openFolder'),

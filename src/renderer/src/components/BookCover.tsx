@@ -26,7 +26,7 @@ export function BookCover({
   className,
   compact
 }: {
-  book: BookSummary
+  book: Pick<BookSummary, 'title' | 'author' | 'coverUrl' | 'format'>
   className?: string
   /** Thumbnail size: show only the color and initial, since text would be unreadable. */
   compact?: boolean

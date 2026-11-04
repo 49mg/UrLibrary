@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, FolderOpen, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
 import type {
+  ProviderInfo,
   AiEffort,
   ApiKeyStatus,
   AppInfo,
@@ -132,6 +133,41 @@ function ApiKeySection(): React.JSX.Element {
   )
 }
 
+function SourcesList(): React.JSX.Element {
+  const { settings, update } = useSettings()
+  const [providers, setProviders] = useState<ProviderInfo[]>([])
+  useEffect(() => {
+    window.api.discover
+      .providers()
+      .then(setProviders)
+      .catch((e) => toast.error(errMsg(e)))
+  }, [])
+  return (
+    <ul className="flex flex-col gap-3">
+      {providers.map((p) => (
+        <li key={p.id}>
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1 accent-[var(--c-accent)]"
+              checked={settings.discover.providers[p.id] ?? false}
+              onChange={(e) =>
+                update({ discover: { providers: { [p.id]: e.target.checked } } }).catch((x) =>
+                  toast.error(errMsg(x))
+                )
+              }
+            />
+            <span>
+              <span className="text-sm font-medium">{p.name}</span>
+              <span className="block text-xs text-muted">{p.description}</span>
+            </span>
+          </label>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function SettingsPage(): React.JSX.Element {
   const { settings, update } = useSettings()
   const [info, setInfo] = useState<AppInfo | null>(null)
@@ -248,6 +284,13 @@ export function SettingsPage(): React.JSX.Element {
               }}
             />
           </Field>
+        </Section>
+
+        <Section
+          title="Sources"
+          description="Where Discover looks for free books. Only public-domain and openly licensed books are offered."
+        >
+          <SourcesList />
         </Section>
 
         <Section title="Storage" description="Where your books and notes live on this computer.">

@@ -113,5 +113,13 @@ export const migrations: string[] = [
     content    TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   );
+  `,
+  /* 5: catalog (Discover) HTTP cache; lookup of downloaded books by catalog id */ `
+  CREATE TABLE http_cache (
+    url        TEXT PRIMARY KEY,
+    body       TEXT NOT NULL,
+    fetched_at INTEGER NOT NULL
+  );
+  CREATE INDEX books_source ON books(source, source_id);
   `
 ]

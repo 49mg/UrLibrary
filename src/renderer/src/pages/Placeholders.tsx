@@ -1,17 +1,5 @@
-import { Compass, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { EmptyState, PageHeader } from '../components/ui'
-
-export function DiscoverPage(): React.JSX.Element {
-  return (
-    <>
-      <PageHeader title="Discover" subtitle="Free, public-domain and openly licensed books" />
-      <EmptyState icon={Compass} title="Book search is coming next">
-        Search Project Gutenberg, Open Library, Internet Archive and more, then download books
-        straight into your library.
-      </EmptyState>
-    </>
-  )
-}
 
 export function AiStudioPage(): React.JSX.Element {
   return (

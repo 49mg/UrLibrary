@@ -1,4 +1,4 @@
-import { app, safeStorage } from 'electron'
+import { app, net, safeStorage } from 'electron'
 import { join } from 'node:path'
 import { openDatabase, type Db } from './db'
 import { SettingsRepo } from './db/settingsRepo'
@@ -11,6 +11,7 @@ import { SecretStore } from './services/secrets'
 import { JobQueue } from './services/jobQueue'
 import { ImportService } from './import/importService'
 import { runInWorker } from './workers/runWorker'
+import { DiscoverService, SqliteCache } from './discover/service'
 import type { EventChannel, IpcEventMap } from '../shared/ipc'
 
 /** Long-lived services shared by IPC handlers. Created once after app 'ready'. */
@@ -26,7 +27,10 @@ export interface AppContext {
   notebooks: NotebooksRepo
   secrets: SecretStore
   jobs: JobQueue
+  /** Separate queue so downloads don't wait behind long text extractions. */
+  downloads: JobQueue
   importer: ImportService
+  discover: DiscoverService
 }
 
 export type Emit = <E extends EventChannel>(event: E, payload: IpcEventMap[E]) => void
@@ -47,11 +51,23 @@ export function createContext(emit: Emit): AppContext {
     ocrCachePath: join(userData, 'ocr-data'),
     onChanged: (bookId) => emit('library:changed', { bookId })
   })
+  const settings = new SettingsRepo(db)
+  // Downloads run beside imports with their own concurrency (network-bound, not CPU-bound).
+  const downloads = new JobQueue((job) => emit('jobs:update', job), 3)
+  const discover = new DiscoverService({
+    fetcher: (url, init) => net.fetch(url, init),
+    cache: new SqliteCache(db),
+    books,
+    settings,
+    jobs: downloads,
+    importer,
+    downloadsDir: join(userData, 'downloads')
+  })
   return {
     db,
     dbPath,
     files,
-    settings: new SettingsRepo(db),
+    settings,
     books,
     collections: new CollectionsRepo(db),
     search: new SearchRepo(db),
@@ -65,6 +81,8 @@ export function createContext(emit: Emit): AppContext {
       decrypt: (b) => safeStorage.decryptString(b)
     }),
     jobs,
-    importer
+    importer,
+    discover,
+    downloads
   }
 }

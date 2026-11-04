@@ -45,6 +45,13 @@ heading), `section:2` (TXT), `scroll:0.42` (saved scroll position in HTML views)
 content is sandboxed: EPUB pages render in script-less iframes, DOCX/MD/TXT HTML is sanitized
 with DOMPurify.
 
+**Discover (free books):** searches Project Gutenberg (official OPDS), Open Library, the Internet
+Archive and arXiv in parallel, plus Standard Ebooks' public new-releases feed. Only public-domain or
+openly licensed items are offered: Internet Archive results must carry an open license or be
+published in 1930 or earlier, and lending-library items are excluded. Download URLs are resolved in
+the main process (never taken from the UI), must be https on the source's own host, are size-limited,
+and are checked by their first bytes before import. Catalog responses are cached in SQLite.
+
 **Highlights & notes:** stored in SQLite, never written into the original file. Each one keeps a
 format-specific anchor (PDF page + rectangles as page fractions, EPUB CFI, or a text quote with
 surrounding context for DOCX/MD/TXT that is re-found if the text shifts — see
