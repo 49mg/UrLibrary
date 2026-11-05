@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Ur Library (مكتبة اور): discover free books, read, annotate and transform them with AI",
   "main": "./out/main/index.js",
-  "author": "mgdhia",
+  "author": "Abdalbakee (mg) Dhia",
+  "license": "MIT",
   "homepage": "https://github.com/49mg/UrLibrary",
   "repository": {
     "type": "git",

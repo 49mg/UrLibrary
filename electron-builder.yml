@@ -1,6 +1,6 @@
 appId: com.urlibrary.app
 productName: Ur Library
-copyright: Copyright © 2026 mgdhia
+copyright: Copyright © 2026 Abdalbakee (mg) Dhia
 directories:
   buildResources: build
   output: dist
@@ -46,8 +46,8 @@ linux:
     - AppImage
     - deb
   executableName: ur-library
-  maintainer: mgdhia <mgdhia49@gmail.com>
-  vendor: mgdhia
+  maintainer: Abdalbakee (mg) Dhia <mgdhia49@gmail.com>
+  vendor: Abdalbakee (mg) Dhia
   synopsis: Read, annotate and transform your books with AI
   description: >-
     Ur Library (مكتبة اور) finds and downloads free public-domain books, reads PDF, EPUB and Word files,

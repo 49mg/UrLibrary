@@ -137,3 +137,7 @@ applied at the next start, before the database is opened.
 `node_modules` in the package; native canvas binaries and Tesseract's worker files are unpacked
 from the asar archive. Updates use electron-updater with GitHub Releases; a `.deb` install doesn't
 self-update.
+
+## License
+
+[MIT](LICENSE) © 2026 Abdalbakee (mg) Dhia
