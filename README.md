@@ -1,15 +1,62 @@
-# Ur Library
+# Ur Library · مكتبة اور
 
-Desktop app (Electron + React + TypeScript) to discover free public-domain books, read and annotate
-them, import your own PDF/EPUB/DOCX files, and transform books with Claude (summarize, simplify,
-translate, chat).
+A desktop app for reading. Find and download free public-domain books, import your own PDF, EPUB,
+Word, text and Markdown files, read them with highlights and notes, and use Claude (with your own
+Anthropic API key) to summarize, simplify, translate or rewrite a book, or ask questions about it
+with answers that link to the passages they come from.
+
+![Library](docs/screenshots/library.png)
+
+| Discover free books | Ask about a book |
+| --- | --- |
+| ![Discover](docs/screenshots/discover.png) | ![Reader with chat](docs/screenshots/reader-chat.png) |
+
+![AI Studio](docs/screenshots/ai-studio.png)
+
+## Install
+
+Download from the [releases page](https://github.com/49mg/UrLibrary/releases/latest):
+
+- **Linux:** `ur-library-<version>.AppImage` (any distribution; updates itself) or
+  `ur-library_<version>_amd64.deb` (Debian/Ubuntu; update by installing the newer `.deb`).
+  For the AppImage: `chmod +x ur-library-*.AppImage` and run it.
+- **Windows / macOS:** installers can be built from this repository (`npm run build:win`,
+  `npm run build:mac` on those systems); they aren't code-signed yet, so the OS will warn on first
+  launch.
+
+The AI features need an Anthropic API key. Add it in **Settings → AI**. It's stored encrypted with
+your system keyring and only ever sent to Anthropic. Everything else works without one.
+
+**Updates:** the AppImage (and the Windows/macOS installers) check GitHub Releases in the
+background, download new versions quietly and install them when you restart. This can be turned off
+in Settings → Updates.
+
+**Backups:** Settings → Backup saves one zip with all books, highlights, notes, chats and AI
+versions; "Restore from backup" puts it back (the current library is kept aside, not deleted). The
+API key isn't included in backups.
+
+## Where the books come from
+
+Discover only offers books that are free to download and read:
+
+| Source | What's offered | Terms |
+| --- | --- | --- |
+| [Project Gutenberg](https://www.gutenberg.org) | 75,000+ public-domain books | Public domain in the USA. Check your country's copyright law before downloading if you live elsewhere. Gutenberg's [terms of use](https://www.gutenberg.org/policy/terms_of_use.html) ask automated tools to be gentle: the app uses the official OPDS catalog, caches results and downloads one file per request. |
+| [Standard Ebooks](https://standardebooks.org) | Carefully produced public-domain ebooks | Their releases are dedicated to the public domain (CC0). Only the public new-releases feed is used; the full catalog requires their paid membership. |
+| [Open Library](https://openlibrary.org) / [Internet Archive](https://archive.org) | Public-domain scans and openly licensed books | Only items with an open license or published in 1930 or earlier are shown. Lending-library (borrowable, in-copyright) books are excluded. |
+| [arXiv](https://arxiv.org) (off by default) | Research papers | Each paper keeps its author's license; arXiv's license allows reading and personal copies. |
+
+Books you import yourself stay on your computer. When you use an AI feature, the text involved is
+sent to Anthropic's API under your own account and [their terms](https://www.anthropic.com/legal).
 
 ## Development
 
 ```bash
 npm install
-npm run dev        # start the app with hot reload
+npm run dev            # start the app with hot reload
 npm run lint && npm run typecheck
+
+npm run build:linux    # AppImage + .deb in dist/
 ```
 
 ## Architecture
@@ -76,6 +123,17 @@ surrounding context for DOCX/MD/TXT that is re-found if the text shifts — see
 `src/shared/anchoring.ts`). Notes export to Markdown, and PDF highlights export as standard PDF
 Highlight annotations in a copy of the file.
 
-**Data location:** `<userData>/library.db` (SQLite) and `<userData>/library/<bookId>/…` for files.
-Book files reach the UI through the `book://<bookId>/<path>` protocol, which refuses paths outside
-the book's folder.
+**Data location:** `<userData>/library.db` (SQLite) and `<userData>/library/<bookId>/…` for files
+(`~/.config/ur-library` on Linux). Book files reach the UI through the `book://<bookId>/<path>`
+protocol, which refuses paths outside the book's folder. Only one instance runs at a time; a second
+launch focuses the open window.
+
+**Backup format:** a zip with `manifest.json`, a consistent database snapshot (`VACUUM INTO`) and
+the `library/` folder, written as a stream so large libraries never need to fit in memory. A restore
+is checked first (manifest, schema version, `PRAGMA quick_check`, no paths outside the folder), then
+applied at the next start, before the database is opened.
+
+**Packaging:** electron-builder. Renderer libraries are bundled by Vite and kept out of
+`node_modules` in the package; native canvas binaries and Tesseract's worker files are unpacked
+from the asar archive. Updates use electron-updater with GitHub Releases; a `.deb` install doesn't
+self-update.

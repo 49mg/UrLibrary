@@ -20,12 +20,37 @@ import { registerIpc } from './ipc/register'
 import { handleBookProtocol, registerBookSchemePrivileges } from './protocol'
 import { testApiKey } from './services/apiKeyTester'
 import { AppError } from './ipc/handler'
-import type { BookDetails, BookVersion, EventChannel, IpcEventMap } from '../shared/ipc'
+import {
+  APP_NAME,
+  type BookDetails,
+  type BookVersion,
+  type EventChannel,
+  type IpcEventMap
+} from '../shared/ipc'
 import { effectiveReaderPrefs } from '../shared/defaults'
 import { runInWorker } from './workers/runWorker'
+import { UpdateService } from './services/updater'
+import {
+  applyPendingRestore,
+  confirmRestore,
+  createBackup,
+  discardRestore,
+  stageRestore
+} from './services/backup'
 
 registerBookSchemePrivileges()
 preferSystemKeyring()
+
+// One instance only: two processes on the same database and library folder would corrupt them.
+// A second launch (e.g. from the app launcher) focuses the existing window instead.
+const isPrimary = app.requestSingleInstanceLock()
+if (!isPrimary) app.exit(0)
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+})
 
 /**
  * Chromium only auto-detects the Linux keyring on desktops it knows (GNOME, KDE…). On others
@@ -50,7 +75,7 @@ function createWindow(ctx: AppContext): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     show: false,
-    title: 'Ur Library',
+    title: APP_NAME,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#16140f' : '#f7f4ee',
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
@@ -142,8 +167,37 @@ app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.urlibrary.app')
   app.on('browser-window-created', (_, window) => optimizer.watchWindowShortcuts(window))
 
+  // A backup confirmed before the last restart replaces the library before anything opens it.
+  let restoredKeptAt: string | null = null
+  try {
+    restoredKeptAt = applyPendingRestore(app.getPath('userData'))
+  } catch (err) {
+    console.error('Restoring the backup failed:', err)
+  }
   const ctx = createContext(sendEvent)
   handleBookProtocol(ctx.files)
+  const updates = new UpdateService(
+    {
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      version: app.getVersion(),
+      resourcesPath: process.resourcesPath,
+      appImage: process.env.APPIMAGE,
+      feedUrl: process.env.UR_LIBRARY_UPDATE_URL,
+      configDir: join(app.getPath('userData'), 'updater')
+    },
+    // Loaded lazily: it isn't needed at all in development or .deb installs.
+    // electron-updater defines autoUpdater as a lazy getter on its CommonJS exports, which bundler
+    // interop doesn't copy onto the namespace object, so read it from the default export too.
+    async () => {
+      const m = (await import('electron-updater')) as typeof import('electron-updater') & {
+        default?: typeof import('electron-updater')
+      }
+      return m.autoUpdater ?? m.default!.autoUpdater
+    },
+    () => ctx.settings.get().updates.auto,
+    (s) => sendEvent('updates:state', s)
+  )
 
   const requireBook = (id: string): BookDetails => {
     const book = ctx.books.get(id)
@@ -379,6 +433,56 @@ app.whenReady().then(() => {
       else await writeFile(res, await printHtmlToPdf(versionHtml(v.title, v.markdown)))
       return { path: res }
     },
+    'updates:state': () => updates.get(),
+    'updates:check': () => updates.check(),
+    'updates:install': () => updates.install(),
+    'backup:create': async () => {
+      const date = new Date().toISOString().slice(0, 10)
+      const outPath = await saveDialog({
+        title: 'Back up library',
+        defaultPath: join(app.getPath('documents'), `ur-library-backup-${date}.zip`),
+        filters: [{ name: `${APP_NAME} backup`, extensions: ['zip'] }]
+      })
+      if (!outPath) return null
+      try {
+        return await createBackup({
+          db: ctx.db,
+          libraryDir: ctx.files.root,
+          outPath,
+          appVersion: app.getVersion(),
+          tmpDir: app.getPath('temp')
+        })
+      } catch (err) {
+        throw new AppError(
+          'BACKUP_FAILED',
+          `The backup couldn’t be saved: ${(err as Error).message}`
+        )
+      }
+    },
+    'backup:pickRestore': async () => {
+      const opts: OpenDialogOptions = {
+        title: 'Restore from backup',
+        properties: ['openFile'],
+        filters: [{ name: `${APP_NAME} backup`, extensions: ['zip'] }]
+      }
+      const res = mainWindow
+        ? await dialog.showOpenDialog(mainWindow, opts)
+        : await dialog.showOpenDialog(opts)
+      if (res.canceled || res.filePaths.length === 0) return null
+      try {
+        const m = await stageRestore(res.filePaths[0], app.getPath('userData'))
+        return { createdAt: m.createdAt, books: m.books, appVersion: m.appVersion }
+      } catch (err) {
+        throw new AppError('BAD_BACKUP', (err as Error).message)
+      }
+    },
+    'backup:confirmRestore': () => {
+      confirmRestore(app.getPath('userData'))
+      app.relaunch()
+      app.exit(0)
+    },
+    'backup:discardRestore': () => discardRestore(app.getPath('userData')),
+    'backup:lastRestore': () => (restoredKeptAt ? { keptAt: restoredKeptAt } : null),
     'library:openFolder': async () => {
       const err = await shell.openPath(ctx.files.root)
       if (err) throw new AppError('OPEN_FAILED', err)
@@ -442,6 +546,7 @@ app.whenReady().then(() => {
   mainWindow = createWindow(ctx)
   ctx.importer.resumeInterrupted()
   ctx.ai.resumeInterrupted()
+  updates.start()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow(ctx)

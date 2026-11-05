@@ -14,7 +14,7 @@ import {
   Trash2,
   type LucideIcon
 } from 'lucide-react'
-import type { Collection } from '../../../shared/ipc'
+import { APP_NAME, APP_NAME_AR, type Collection } from '../../../shared/ipc'
 import { cn } from '../lib/cn'
 import { JobsIndicator } from './JobsIndicator'
 import { Menu } from './Menu'
@@ -259,7 +259,10 @@ export function Sidebar(): React.JSX.Element {
   return (
     <aside className="flex w-56 shrink-0 flex-col border-r border-border bg-surface px-3 py-5">
       <div className="mb-6 px-3">
-        <span className="font-serif text-xl tracking-tight">Ur Library</span>
+        <span className="block font-serif text-xl tracking-tight">{APP_NAME}</span>
+        <span lang="ar" dir="rtl" className="block text-left text-sm text-muted">
+          {APP_NAME_AR}
+        </span>
       </div>
       <nav aria-label="Main" className="flex flex-col gap-1">
         {NAV.map((n) => (

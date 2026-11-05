@@ -249,7 +249,8 @@ export function AiStudioPage(): React.JSX.Element {
       )}
       <div className="flex min-h-0 flex-1 gap-6 px-10 py-6">
         {/* ---- setup ---- */}
-        <div className="flex w-[380px] shrink-0 flex-col gap-5 overflow-y-auto pr-1">
+        {/* Children keep their height; the column scrolls instead of squashing them. */}
+        <div className="flex w-[380px] shrink-0 flex-col gap-5 overflow-y-auto pr-1 [&>*]:shrink-0">
           <Field label="Book" htmlFor="ai-book">
             <select
               id="ai-book"

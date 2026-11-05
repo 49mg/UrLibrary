@@ -28,7 +28,30 @@ export interface AppSettings {
   discover: {
     providers: Record<ProviderId, boolean>
   }
+  updates: {
+    /** Check for and download new versions in the background. */
+    auto: boolean
+  }
 }
+
+export type UpdateStatus =
+  'unsupported' | 'idle' | 'checking' | 'none' | 'downloading' | 'ready' | 'error'
+
+export interface UpdateState {
+  status: UpdateStatus
+  currentVersion: string
+  /** The new version, once one is found. */
+  version?: string
+  /** 0..100 while downloading */
+  percent?: number
+  /** Why updates can't be installed from inside the app, or what went wrong. */
+  message?: string
+  checkedAt?: string
+}
+
+/** Display names. */
+export const APP_NAME = 'Ur Library'
+export const APP_NAME_AR = 'مكتبة اور'
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }
 
@@ -469,6 +492,22 @@ export interface IpcInvokeMap {
     result: { text: string }
   }
   'ai:askCancel': { args: { requestId: string }; result: void }
+  /** Saves a zip of the whole library. null when the save dialog was cancelled. */
+  'backup:create': { args: void; result: { path: string; bytes: number; books: number } | null }
+  /** Picks and checks a backup; nothing changes until backup:confirmRestore. null when cancelled. */
+  'backup:pickRestore': {
+    args: void
+    result: { createdAt: string; books: number; appVersion: string } | null
+  }
+  /** Restarts the app; the backup replaces the library before it opens. */
+  'backup:confirmRestore': { args: void; result: void }
+  'backup:discardRestore': { args: void; result: void }
+  /** Set right after a restore, so the UI can say where the old library was kept. */
+  'backup:lastRestore': { args: void; result: { keptAt: string } | null }
+  'updates:state': { args: void; result: UpdateState }
+  'updates:check': { args: void; result: UpdateState }
+  /** Restarts into the downloaded version. */
+  'updates:install': { args: void; result: void }
   'chat:info': { args: { bookId: string }; result: ChatInfo }
   'chat:history': { args: { bookId: string }; result: ChatMessage[] }
   /** The answer streams as 'ai:delta' events with this requestId; resolves with the saved answer. */
@@ -509,6 +548,7 @@ export interface IpcEventMap {
   'ai:job': AiJob
   /** Streamed text: for a job part (jobId + idx) or a quick question (requestId). */
   'ai:delta': { jobId?: string; idx?: number; requestId?: string; text: string }
+  'updates:state': UpdateState
 }
 
 export type InvokeChannel = keyof IpcInvokeMap
@@ -522,7 +562,8 @@ export const EVENT_CHANNELS: readonly EventChannel[] = [
   'library:changed',
   'annotations:changed',
   'ai:job',
-  'ai:delta'
+  'ai:delta',
+  'updates:state'
 ]
 
 /** Every invoke goes over the wire wrapped in this envelope so errors keep a code and message. */

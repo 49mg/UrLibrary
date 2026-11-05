@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b25a2e"/>
+      <stop offset="1" stop-color="#7d3a1b"/>
+    </linearGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf9"/>
+      <stop offset="1" stop-color="#efe7da"/>
+    </linearGradient>
+  </defs>
+  <!-- Squircle-ish tile with margin, like modern desktop icons -->
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bg)"/>
+  <!-- Book shadow -->
+  <path d="M512 772 C430 724 330 704 214 712 L214 380 C330 372 430 392 512 440 C594 392 694 372 810 380 L810 712 C694 704 594 724 512 772 Z" fill="#000" opacity="0.18" transform="translate(0 22)"/>
+  <!-- Open book -->
+  <path d="M512 752 C430 704 330 684 214 692 L214 360 C330 352 430 372 512 420 Z" fill="url(#page)"/>
+  <path d="M512 752 C594 704 694 684 810 692 L810 360 C694 352 594 372 512 420 Z" fill="url(#page)"/>
+  <path d="M512 420 L512 752" stroke="#d9cbb6" stroke-width="10"/>
+  <!-- Text lines -->
+  <g stroke="#cdbba3" stroke-width="18" stroke-linecap="round">
+    <path d="M286 470 C350 466 404 476 446 494"/>
+    <path d="M286 540 C350 536 404 546 446 564"/>
+    <path d="M286 610 C350 606 404 616 446 634"/>
+    <path d="M578 564 C620 546 674 536 738 540"/>
+    <path d="M578 634 C620 616 674 606 738 610"/>
+  </g>
+  <!-- AI spark above the right page -->
+  <path d="M676 214 C686 290 704 308 780 318 C704 328 686 346 676 422 C666 346 648 328 572 318 C648 308 666 290 676 214 Z" fill="#ffd9a8"/>
+  <path d="M800 410 C804 440 811 447 841 451 C811 455 804 462 800 492 C796 462 789 455 759 451 C789 447 796 440 800 410 Z" fill="#ffd9a8" opacity="0.85"/>
+</svg>

@@ -99,6 +99,18 @@ const api = {
     ask: (args: InvokeArgs<'ai:ask'>) => invoke('ai:ask', args),
     askCancel: (requestId: string) => invoke('ai:askCancel', { requestId })
   },
+  updates: {
+    state: () => invoke('updates:state'),
+    check: () => invoke('updates:check'),
+    install: () => invoke('updates:install')
+  },
+  backup: {
+    create: () => invoke('backup:create'),
+    pickRestore: () => invoke('backup:pickRestore'),
+    confirmRestore: () => invoke('backup:confirmRestore'),
+    discardRestore: () => invoke('backup:discardRestore'),
+    lastRestore: () => invoke('backup:lastRestore')
+  },
   chat: {
     info: (bookId: string) => invoke('chat:info', { bookId }),
     history: (bookId: string) => invoke('chat:history', { bookId }),

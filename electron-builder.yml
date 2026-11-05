@@ -1,47 +1,82 @@
 appId: com.urlibrary.app
 productName: Ur Library
+copyright: Copyright © 2026 mgdhia
 directories:
   buildResources: build
+  output: dist
 files:
-  - '!**/.vscode/*'
-  - '!src/*'
-  - '!electron.vite.config.{js,ts,mjs,cjs}'
-  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
-  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
-  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  # Only the built app and production dependencies are shipped.
+  - out/**
+  - resources/**
+  - package.json
+  - '!**/*.map'
+  # glibc distros (Ubuntu, Debian, Fedora…) only load the gnu build of the canvas binary.
+  - '!node_modules/@napi-rs/canvas-linux-x64-musl/**'
 asarUnpack:
   - resources/**
   # Native canvas binary and Tesseract's worker scripts must be real files on disk.
   - node_modules/@napi-rs/**
   - node_modules/tesseract.js/**
   - node_modules/tesseract.js-core/**
+npmRebuild: false
+# Releases (and auto-updates) come from GitHub Releases of this repository.
+publish:
+  provider: github
+  owner: 49mg
+  repo: UrLibrary
 win:
   executableName: ur-library
+  target: nsis
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
+  artifactName: ur-library-${version}-setup.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
+  category: public.app-category.books
   entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  target: dmg
   notarize: false
 dmg:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: ur-library-${version}.${ext}
 linux:
   target:
     - AppImage
-    - snap
     - deb
-  maintainer: mgdhia
-  category: Utility
+  executableName: ur-library
+  maintainer: mgdhia <mgdhia49@gmail.com>
+  vendor: mgdhia
+  synopsis: Read, annotate and transform your books with AI
+  description: >-
+    Ur Library (مكتبة اور) finds and downloads free public-domain books, reads PDF, EPUB and Word files,
+    keeps highlights and notes, and uses Claude (with your own API key) to summarize, simplify,
+    translate or answer questions about a book.
+  category: Office
+  desktop:
+    entry:
+      Name: Ur Library
+      Name[ar]: مكتبة اور
+      GenericName: E-book Reader
+      GenericName[ar]: قارئ كتب إلكترونية
+      Comment: Read, annotate and transform your books with AI
+      Comment[ar]: اقرأ كتبك ودوّن ملاحظاتك عليها وحوّلها بالذكاء الاصطناعي
+      Keywords: books;ebook;reader;pdf;epub;library;notes;highlights;ur;كتب;مكتبة;
+      StartupWMClass: ur-library
 appImage:
-  artifactName: ${name}-${version}.${ext}
-npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  artifactName: ur-library-${version}.${ext}
+deb:
+  packageName: ur-library
+  artifactName: ur-library_${version}_${arch}.${ext}
+  # Keyring access (libsecret) for storing the API key encrypted.
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libuuid1
+    - libsecret-1-0

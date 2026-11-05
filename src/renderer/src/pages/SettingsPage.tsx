@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle2, FolderOpen, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
+import {
+  ArchiveRestore,
+  RefreshCw,
+  CheckCircle2,
+  DownloadCloud,
+  FolderOpen,
+  KeyRound,
+  Loader2,
+  ShieldAlert
+} from 'lucide-react'
 import type {
   ProviderInfo,
+  UpdateState,
   AiEffort,
   ApiKeyStatus,
   AppInfo,
@@ -15,6 +25,180 @@ import { toast } from '../stores/toasts'
 
 function errMsg(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`
+  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(1)} MB`
+  return `${(n / 1024 ** 3).toFixed(2)} GB`
+}
+
+function updateLine(s: UpdateState): string {
+  switch (s.status) {
+    case 'unsupported':
+      return s.message ?? 'Updates aren’t available for this install.'
+    case 'checking':
+      return 'Checking for updates…'
+    case 'none':
+      return 'You have the latest version.'
+    case 'downloading':
+      return `Downloading version ${s.version}… ${s.percent ?? 0}%`
+    case 'ready':
+      return `Version ${s.version} is ready. It installs when you restart the app.`
+    case 'error':
+      return s.message ?? 'The update check failed.'
+    default:
+      return 'Updates are checked in the background.'
+  }
+}
+
+function UpdatesSection(): React.JSX.Element {
+  const { settings, update } = useSettings()
+  const [state, setState] = useState<UpdateState | null>(null)
+  useEffect(() => {
+    window.api.updates.state().then(setState, () => undefined)
+    return window.api.on('updates:state', setState)
+  }, [])
+  if (!state) return <></>
+  const unsupported = state.status === 'unsupported'
+  return (
+    <Section title="Updates" description={`You’re using version ${state.currentVersion}.`}>
+      <p
+        role="status"
+        className={state.status === 'error' ? 'text-sm text-danger' : 'text-sm text-muted'}
+      >
+        {updateLine(state)}
+      </p>
+      {!unsupported && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {state.status === 'ready' ? (
+              <Button variant="primary" onClick={() => void window.api.updates.install()}>
+                <RefreshCw size={16} aria-hidden /> Restart now
+              </Button>
+            ) : (
+              <Button
+                onClick={() => void window.api.updates.check().catch((e) => toast.error(errMsg(e)))}
+                disabled={state.status === 'checking' || state.status === 'downloading'}
+              >
+                <RefreshCw size={16} aria-hidden /> Check for updates
+              </Button>
+            )}
+          </div>
+          <label className="flex cursor-pointer items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              className="accent-[var(--c-accent)]"
+              checked={settings.updates.auto}
+              onChange={(e) =>
+                update({ updates: { auto: e.target.checked } }).catch((x) => toast.error(errMsg(x)))
+              }
+            />
+            Check for updates automatically
+          </label>
+        </>
+      )}
+    </Section>
+  )
+}
+
+function BackupSection(): React.JSX.Element {
+  const [busy, setBusy] = useState<'backup' | 'restore' | null>(null)
+  const [staged, setStaged] = useState<{ createdAt: string; books: number } | null>(null)
+  const [keptAt, setKeptAt] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.api.backup.lastRestore().then(
+      (r) => setKeptAt(r?.keptAt ?? null),
+      () => undefined
+    )
+  }, [])
+
+  const backup = async (): Promise<void> => {
+    setBusy('backup')
+    try {
+      const r = await window.api.backup.create()
+      if (r)
+        toast.success(
+          `Backed up ${r.books} book${r.books === 1 ? '' : 's'} (${formatBytes(r.bytes)})`
+        )
+    } catch (e) {
+      toast.error(errMsg(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const pick = async (): Promise<void> => {
+    setBusy('restore')
+    try {
+      setStaged(await window.api.backup.pickRestore())
+    } catch (e) {
+      toast.error(errMsg(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <Section
+      title="Backup"
+      description="A single zip with your books, highlights, notes, chats and AI versions. Your API key isn’t included; add it again after restoring on another computer."
+    >
+      {keptAt && (
+        <p role="status" className="rounded-lg bg-sunken px-3 py-2 text-sm">
+          Library restored from backup. Your previous library was kept in{' '}
+          <code className="text-xs break-all">{keptAt}</code> until the next restore.
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => void backup()} disabled={!!busy}>
+          {busy === 'backup' ? (
+            <Loader2 size={16} className="animate-spin" aria-hidden />
+          ) : (
+            <DownloadCloud size={16} aria-hidden />
+          )}
+          {busy === 'backup' ? 'Backing up…' : 'Back up library…'}
+        </Button>
+        <Button onClick={() => void pick()} disabled={!!busy || !!staged}>
+          {busy === 'restore' ? (
+            <Loader2 size={16} className="animate-spin" aria-hidden />
+          ) : (
+            <ArchiveRestore size={16} aria-hidden />
+          )}
+          {busy === 'restore' ? 'Checking backup…' : 'Restore from backup…'}
+        </Button>
+      </div>
+      {staged && (
+        <div
+          role="alertdialog"
+          aria-label="Confirm restore"
+          className="space-y-3 rounded-lg border border-danger/40 p-3 text-sm"
+        >
+          <p>
+            Replace your library with the backup from{' '}
+            <strong>{new Date(staged.createdAt).toLocaleString()}</strong> ({staged.books} book
+            {staged.books === 1 ? '' : 's'})? The app will restart. Your current library is kept
+            aside, not deleted.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="danger" onClick={() => void window.api.backup.confirmRestore()}>
+              Restore and restart
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                void window.api.backup.discardRestore()
+                setStaged(null)
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </Section>
+  )
 }
 
 function ApiKeySection(): React.JSX.Element {
@@ -312,6 +496,10 @@ export function SettingsPage(): React.JSX.Element {
             </p>
           )}
         </Section>
+
+        <BackupSection />
+
+        <UpdatesSection />
       </div>
     </>
   )

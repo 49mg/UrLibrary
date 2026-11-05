@@ -20,6 +20,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
       archive: true,
       arxiv: false
     }
+  },
+  updates: {
+    auto: true
   }
 }
 

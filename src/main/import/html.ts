@@ -20,6 +20,7 @@ export function htmlToBlocks(html: string): Block[] {
   const blocks: Block[] = []
   let text = ''
   let skipDepth = 0
+  let preDepth = 0
   let heading: Block['kind'] | null = null
 
   const flush = (): void => {
@@ -40,13 +41,17 @@ export function htmlToBlocks(html: string): Block[] {
           text += '\n'
           return
         }
+        if (name === 'pre') preDepth++
         if (BLOCK.has(name)) {
           flush()
           if (HEADING.test(name)) heading = name as Block['kind']
         }
       },
       ontext(data) {
-        if (!skipDepth) text += data
+        if (skipDepth) return
+        // Line breaks in HTML source are just spaces (books often wrap paragraphs at ~70 columns);
+        // only <br> and <pre> content break lines.
+        text += preDepth ? data : data.replace(/[\r\n\t]+/g, ' ')
       },
       onclosetag(name) {
         if (SKIP.has(name)) {
@@ -54,6 +59,7 @@ export function htmlToBlocks(html: string): Block[] {
           return
         }
         if (skipDepth) return
+        if (name === 'pre') preDepth = Math.max(0, preDepth - 1)
         if (BLOCK.has(name)) {
           flush()
           if (HEADING.test(name)) heading = null

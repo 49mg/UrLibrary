@@ -30,7 +30,16 @@ function App(): React.JSX.Element {
     const offJobs = subscribeJobs()
     const offLibrary = subscribeLibrary()
     const offAi = subscribeAi()
+    // Tell the user once when a new version has finished downloading.
+    let announced: string | undefined
+    const offUpdates = window.api.on('updates:state', (s) => {
+      if (s.status === 'ready' && s.version !== announced) {
+        announced = s.version
+        toast.info(`Version ${s.version} is ready. It installs when you restart Ur Library.`)
+      }
+    })
     return () => {
+      offUpdates()
       offAi()
       offSettings()
       offJobs()

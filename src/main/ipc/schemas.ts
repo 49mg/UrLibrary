@@ -34,7 +34,8 @@ const settingsPatch = z
         providers: z.partialRecord(z.enum(PROVIDER_IDS), z.boolean()).optional()
       })
       .strict()
-      .optional()
+      .optional(),
+    updates: z.object({ auto: z.boolean().optional() }).strict().optional()
   })
   .strict()
 
@@ -226,6 +227,14 @@ export const invokeSchemas: { [K in InvokeChannel]: z.ZodType<InvokeArgs<K>> } =
     })
     .strict(),
   'ai:askCancel': z.object({ requestId: id }).strict(),
+  'backup:create': z.undefined(),
+  'backup:pickRestore': z.undefined(),
+  'backup:confirmRestore': z.undefined(),
+  'backup:discardRestore': z.undefined(),
+  'backup:lastRestore': z.undefined(),
+  'updates:state': z.undefined(),
+  'updates:check': z.undefined(),
+  'updates:install': z.undefined(),
   'chat:info': z.object({ bookId: id }).strict(),
   'chat:history': z.object({ bookId: id }).strict(),
   'chat:ask': z
